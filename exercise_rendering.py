@@ -629,16 +629,20 @@ def classify_cycle_question(question: PlannedQuestion) -> str:
     )
     if _has_any(text, ("qualidade", "titulo", "titulo vapor", "x4", "x 4", "entrada do evaporador", "antes do evaporador")):
         return "evaporator_inlet_quality"
-    if _has_any(text, ("eficiencia", "isentropica", "eta")) and _has_any(text, ("compressor", "compressao")):
+    if (
+        _has_any(text, ("eficiencia", "isentropica", "eta", "desempenho", "ideal"))
+        and _has_any(text, ("compressor", "compressao"))
+        and _has_any(text, ("real", "ideal", "isentropica", "comparando", "comparar", "desempenho", "eficiencia"))
+    ):
         return "compressor_efficiency"
     if _has_any(text, ("qh", "q h", "rejeicao", "rejeitado", "ambiente", "condensador")):
         return "condenser_heat"
     if _has_any(text, ("vazao", "massica", "massa do fluido", "m dot", "mdot")):
         return "mass_flow"
-    if _has_any(text, ("potencia", "compressor", "trabalho", " w ", "wcomp", "w comp", "ql", "q l", "remocao de calor")):
-        return "compressor_power"
     if _has_any(text, ("cop", "coeficiente de desempenho")):
         return "cop"
+    if _has_any(text, ("potencia", "trabalho", " w ", "wcomp", "w comp", "ql", "q l", "remocao de calor")):
+        return "compressor_power"
     if _has_any(text, ("entalpia", "entalpias", "h1", "h2", "h3", "h4")):
         return "enthalpy_states"
     if _has_any(text, ("temperatura", "temperaturas", "t2", "t3")):
@@ -649,8 +653,8 @@ def classify_cycle_question(question: PlannedQuestion) -> str:
         "a": "enthalpy_states",
         "b": "temperatures",
         "c": "evaporator_inlet_quality",
-        "d": "mass_flow",
-        "e": "compressor_power",
+        "d": "compressor_efficiency",
+        "e": "cop",
         "f": "cop",
     }.get(item, "unknown")
 
