@@ -433,7 +433,7 @@ def build_question_answers(plan: ThermoPlan | None, execution: ExecutionResult, 
     )
 
 
-def _cycle_question_answers(questions: tuple[PlannedQuestion, ...], result, unit_config: ExerciseUnitConfig) -> tuple[QuestionAnswer, ...]:
+def _cycle_question_answers_legacy(questions: tuple[PlannedQuestion, ...], result, unit_config: ExerciseUnitConfig) -> tuple[QuestionAnswer, ...]:
     state_map = {state.point: state for state in result.states}
     metric_map = {metric.label: metric for metric in result.metrics}
     origins = tuple(f"Estado {state.point}: {state.origin}. {state.formula}" for state in result.states)
@@ -613,6 +613,299 @@ def _cycle_question_answers(questions: tuple[PlannedQuestion, ...], result, unit
             )
         )
     return tuple(answers)
+
+
+def classify_cycle_question(question: PlannedQuestion) -> str:
+    text = _normalize_question_text(
+        " ".join(
+            (
+                question.item or "",
+                question.enunciado or "",
+                question.objetivo or "",
+                question.resultado_esperado or "",
+                " ".join(question.propriedades_a_calcular),
+            )
+        )
+    )
+    if _has_any(text, ("qualidade", "titulo", "titulo vapor", "x4", "x 4", "entrada do evaporador", "antes do evaporador")):
+        return "evaporator_inlet_quality"
+    if _has_any(text, ("eficiencia", "isentropica", "eta")) and _has_any(text, ("compressor", "compressao")):
+        return "compressor_efficiency"
+    if _has_any(text, ("qh", "q h", "rejeicao", "rejeitado", "ambiente", "condensador")):
+        return "condenser_heat"
+    if _has_any(text, ("vazao", "massica", "massa do fluido", "m dot", "mdot")):
+        return "mass_flow"
+    if _has_any(text, ("potencia", "compressor", "trabalho", " w ", "wcomp", "w comp", "ql", "q l", "remocao de calor")):
+        return "compressor_power"
+    if _has_any(text, ("cop", "coeficiente de desempenho")):
+        return "cop"
+    if _has_any(text, ("entalpia", "entalpias", "h1", "h2", "h3", "h4")):
+        return "enthalpy_states"
+    if _has_any(text, ("temperatura", "temperaturas", "t2", "t3")):
+        return "temperatures"
+
+    item = (question.item or "").strip().lower()
+    return {
+        "a": "enthalpy_states",
+        "b": "temperatures",
+        "c": "evaporator_inlet_quality",
+        "d": "mass_flow",
+        "e": "compressor_power",
+        "f": "cop",
+    }.get(item, "unknown")
+
+
+def _cycle_question_answers(
+    questions: tuple[PlannedQuestion, ...],
+    result,
+    unit_config: ExerciseUnitConfig,
+    plan: ThermoPlan | None = None,
+) -> tuple[QuestionAnswer, ...]:
+    state_map = {state.point: state for state in result.states}
+    metric_map = {metric.label: metric for metric in result.metrics}
+    origins = tuple(f"Estado {state.point}: {state.origin}. {state.formula}" for state in result.states)
+    h1 = _enthalpy_si(state_map["1"].enthalpy)
+    h2 = _enthalpy_si(state_map["2"].enthalpy)
+    h3 = _enthalpy_si(state_map["3"].enthalpy)
+    h4 = _enthalpy_si(state_map["4"].enthalpy)
+    h2s = _enthalpy_si(state_map["2s"].enthalpy) if "2s" in state_map else None
+    q_evap = metric_map.get("Calor absorvido no evaporador")
+    w_comp = metric_map.get("Trabalho especifico do compressor")
+    q_cond = metric_map.get("Calor rejeitado no condensador")
+    cop = metric_map.get("COP real de refrigeracao")
+    mass_flow = metric_map.get("Vazao massica")
+    power = metric_map.get("Potencia do compressor")
+    condenser_heat = metric_map.get("Calor no condensador")
+    mass_flow_value = _mass_flow_from_result_or_plan(mass_flow, plan)
+
+    answers: list[QuestionAnswer] = []
+    for question in questions:
+        objective = question.objetivo or question.enunciado or "-"
+        category = classify_cycle_question(question)
+
+        if category == "enthalpy_states":
+            answers.append(
+                QuestionAnswer(
+                    item=question.item or "a",
+                    objective=objective,
+                    status="respondido",
+                    interpretation="As entalpias definem os balanços de energia no evaporador, compressor e condensador.",
+                    data_used="Estados calculados por CoolProp conforme as relações do ciclo.",
+                    formulas=(r"h_i=h(P_i,T_i)\ \mathrm{ou}\ h_i=h(P_i,x_i)",),
+                    substitution=rf"h_1={h1:.6g},\ h_2={h2:.6g},\ h_3={h3:.6g},\ h_4={h4:.6g}\ \mathrm{{J/kg}}",
+                    result_text=f"h1={h1:.6g} J/kg; h2={h2:.6g} J/kg; h3={h3:.6g} J/kg; h4={h4:.6g} J/kg",
+                    origins=origins,
+                )
+            )
+            continue
+
+        if category == "temperatures":
+            temperatures = []
+            for point in ("1", "2", "3", "4"):
+                state = state_map[point]
+                temperatures.append(f"T{point}={_temperature_from_c(state.temperature, unit_config.temperature_unit):.6g} {unit_config.temperature_unit}")
+            answers.append(
+                QuestionAnswer(
+                    item=question.item or "b",
+                    objective=objective,
+                    status="respondido",
+                    interpretation="As temperaturas indicam as condições térmicas em cada ponto do ciclo.",
+                    data_used=f"Unidade global selecionada apenas para exibição: {unit_config.temperature_unit}.",
+                    formulas=(r"T_i=T(P_i,h_i)\ \mathrm{ou}\ T_i=T(P_i,x_i)",),
+                    substitution=r",\ ".join(temperatures),
+                    result_text="; ".join(temperatures),
+                    origins=origins,
+                )
+            )
+            continue
+
+        if category == "evaporator_inlet_quality":
+            x4 = state_map["4"].quality
+            answers.append(
+                QuestionAnswer(
+                    item=question.item or "c",
+                    objective=objective,
+                    status="respondido" if x4 is not None else "parcial",
+                    interpretation="Qualidade em refrigeração é o título de vapor da mistura, uma grandeza adimensional.",
+                    data_used="Estado 4 calculado por CoolProp com P4=P_evap e h4=h3.",
+                    formulas=(r"h_4=h_3", r"x_4=x(P_4,h_4)"),
+                    substitution="" if x4 is None else rf"x_4={x4:.6g}\ [-]",
+                    result_text="x4 não aplicável" if x4 is None else f"x4={x4:.6g} [-]",
+                    origins=origins,
+                )
+            )
+            continue
+
+        if category == "mass_flow":
+            if mass_flow_value is not None and q_evap and q_evap.value is not None:
+                answers.append(
+                    QuestionAnswer(
+                        item=question.item or "d",
+                        objective=objective,
+                        status="respondido",
+                        interpretation="A vazão mássica é a escala de massa do ciclo.",
+                        data_used="Vazão informada no enunciado ou calculada a partir da capacidade do evaporador.",
+                        formulas=(r"\dot m=\frac{\dot Q_L}{h_1-h_4}",),
+                        substitution=rf"\dot m={mass_flow_value:.6g}\ \mathrm{{kg/s}}",
+                        result_text=f"m_dot={mass_flow_value:.6g} kg/s",
+                        origins=origins,
+                    )
+                )
+            else:
+                answers.append(_blocked_cycle_answer(question, "A vazão exige capacidade frigorífica ou vazão mássica informada.", origins))
+            continue
+
+        if category == "compressor_power":
+            ql_kw = None if mass_flow_value is None or q_evap is None or q_evap.value is None else mass_flow_value * q_evap.value
+            power_kw = (
+                power.value
+                if power and power.value is not None
+                else None if mass_flow_value is None or w_comp is None or w_comp.value is None else mass_flow_value * w_comp.value
+            )
+            if ql_kw is not None or power_kw is not None:
+                formulas = (r"\dot Q_L=\dot m(h_1-h_4)", r"\dot W_{comp}=\dot m(h_2-h_1)")
+                substitution_parts = []
+                result_parts = []
+                if ql_kw is not None:
+                    substitution_parts.append(rf"\dot Q_L={mass_flow_value:.6g}({h1:.6g}-{h4:.6g})={_power_w(ql_kw):.6g}\ \mathrm{{W}}")
+                    result_parts.append(f"Q_L={_power_w(ql_kw):.6g} W")
+                if power_kw is not None:
+                    substitution_parts.append(rf"\dot W_{{comp}}={mass_flow_value:.6g}({h2:.6g}-{h1:.6g})={_power_w(power_kw):.6g}\ \mathrm{{W}}")
+                    result_parts.append(f"W_comp={_power_w(power_kw):.6g} W")
+                answers.append(
+                    QuestionAnswer(
+                        item=question.item or "e",
+                        objective=objective,
+                        status="respondido",
+                        interpretation="A remoção de calor e a potência dependem da vazão mássica e das diferenças de entalpia.",
+                        data_used="Vazão mássica e entalpias dos estados 1, 2 e 4.",
+                        formulas=formulas,
+                        substitution=r";\ ".join(substitution_parts),
+                        result_text="; ".join(result_parts),
+                        origins=origins,
+                    )
+                )
+            else:
+                answers.append(_blocked_cycle_answer(question, "Q_L e potência exigem vazão mássica ou capacidade do evaporador.", origins))
+            continue
+
+        if category == "condenser_heat":
+            qh_kw = (
+                condenser_heat.value
+                if condenser_heat and condenser_heat.value is not None
+                else None if mass_flow_value is None or q_cond is None or q_cond.value is None else mass_flow_value * q_cond.value
+            )
+            if qh_kw is not None:
+                answers.append(
+                    QuestionAnswer(
+                        item=question.item or "c",
+                        objective=objective,
+                        status="respondido",
+                        interpretation="O condensador rejeita ao ambiente a energia retirada no evaporador mais o trabalho do compressor.",
+                        data_used="Vazão mássica e entalpias dos estados 2 e 3.",
+                        formulas=(r"\dot Q_H=\dot m(h_2-h_3)",),
+                        substitution=rf"\dot Q_H={mass_flow_value:.6g}({h2:.6g}-{h3:.6g})={_power_w(qh_kw):.6g}\ \mathrm{{W}}",
+                        result_text=f"Q_H={_power_w(qh_kw):.6g} W",
+                        origins=origins,
+                    )
+                )
+            else:
+                answers.append(_blocked_cycle_answer(question, "Q_H exige vazão mássica ou capacidade do evaporador.", origins))
+            continue
+
+        if category == "compressor_efficiency":
+            denominator = h2 - h1
+            if h2s is not None and abs(denominator) > 1e-12:
+                eta = (h2s - h1) / denominator
+                answers.append(
+                    QuestionAnswer(
+                        item=question.item or "d",
+                        objective=objective,
+                        status="respondido",
+                        interpretation="A eficiência isentrópica compara o trabalho ideal com o trabalho real do compressor.",
+                        data_used="Estado 2 real, estado 2s isentrópico e entrada do compressor.",
+                        formulas=(r"\eta_c=\frac{h_{2s}-h_1}{h_2-h_1}",),
+                        substitution=rf"\eta_c=\frac{{{h2s:.6g}-{h1:.6g}}}{{{h2:.6g}-{h1:.6g}}}={eta:.6g}",
+                        result_text=f"eta_c={eta:.6g} [-]",
+                        origins=origins,
+                    )
+                )
+            else:
+                answers.append(_blocked_cycle_answer(question, "Eficiência exige h1, h2s e h2 distintos.", origins))
+            continue
+
+        if category == "cop":
+            if cop and cop.value is not None:
+                answers.append(
+                    QuestionAnswer(
+                        item=question.item or "f",
+                        objective=objective,
+                        status="respondido",
+                        interpretation="O COP compara o efeito frigorífico com o trabalho de compressão.",
+                        data_used="Efeito refrigerante e trabalho específico do compressor.",
+                        formulas=(r"COP_R=\frac{h_1-h_4}{h_2-h_1}",),
+                        substitution=rf"COP_R=\frac{{{h1:.6g}-{h4:.6g}}}{{{h2:.6g}-{h1:.6g}}}={cop.value:.6g}",
+                        result_text=f"COP={cop.value:.6g} [-]",
+                        origins=origins,
+                    )
+                )
+            else:
+                answers.append(_blocked_cycle_answer(question, "COP exige efeito refrigerante e trabalho específico calculados.", origins))
+            continue
+
+        answers.append(_blocked_cycle_answer(question, "Ainda não há regra de associação para esta questão.", origins))
+    return tuple(answers)
+
+
+def _blocked_cycle_answer(question: PlannedQuestion, reason: str, origins: tuple[str, ...]) -> QuestionAnswer:
+    return QuestionAnswer(
+        item=question.item or "-",
+        objective=question.objetivo or question.enunciado or "-",
+        status="bloqueado",
+        interpretation="A questão foi identificada, mas não foi possível associar todos os dados necessários.",
+        data_used=reason,
+        formulas=(),
+        substitution="",
+        result_text=f"Item não resolvido automaticamente: {reason}",
+        origins=origins,
+    )
+
+
+def _mass_flow_from_result_or_plan(metric, plan: ThermoPlan | None) -> float | None:
+    if metric and metric.value is not None:
+        return metric.value
+    if not isinstance(plan, ThermoPlan):
+        return None
+    fact = canonical_fact_value(canonical_facts_from_plan(plan), "mass_flow")
+    if fact is None:
+        return None
+    value, unit = fact
+    if unit == "kg/min":
+        return value / 60.0
+    return value
+
+
+def _normalize_question_text(value: str) -> str:
+    lowered = value.lower().strip()
+    lowered = "".join(
+        char for char in unicodedata.normalize("NFKD", lowered) if not unicodedata.combining(char)
+    )
+    lowered = lowered.replace("_", " ").replace("-", " ")
+    return " " + " ".join(lowered.split()) + " "
+
+
+def _has_any(text: str, terms: tuple[str, ...]) -> bool:
+    for term in terms:
+        needle = _normalize_question_text(term).strip()
+        if not needle:
+            continue
+        if len(needle) <= 2 and re.fullmatch(r"[a-z0-9]+", needle):
+            if re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", text):
+                return True
+            continue
+        if needle in text:
+            return True
+    return False
 
 
 def _render_question_answer(answer: QuestionAnswer) -> None:
