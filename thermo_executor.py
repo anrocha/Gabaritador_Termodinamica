@@ -53,7 +53,12 @@ MAIN_TOOLS = {
 def execute_thermo_plan(plan: ThermoPlan, reference_state: str = "Unisinos") -> ExecutionResult:
     tools = {tool.lower() for tool in plan.ferramentas_necessarias}
     text_hint = _normalize_text(" ".join((plan.categoria, plan.tipo_problema, " ".join(plan.objetivos))))
+    signature_tool, signature_steps = _infer_signature_tool(plan, text_hint)
     selected_tool, route_steps = _select_main_tool(plan)
+
+    if signature_tool and signature_tool != selected_tool:
+        selected_tool = signature_tool
+        route_steps = signature_steps + route_steps
 
     if selected_tool:
         result = _execute_main_tool(selected_tool, plan, reference_state)
@@ -111,6 +116,23 @@ def _select_main_tool(plan: ThermoPlan) -> tuple[str, tuple[str, ...]]:
             route_steps.append(f"Ferramenta compatível escolhida por contrato: {item.tool}.")
             return item.tool, tuple(route_steps)
 
+    return "", tuple(route_steps)
+
+
+def _infer_signature_tool(plan: ThermoPlan, text_hint: str) -> tuple[str, tuple[str, ...]]:
+    route_steps = []
+    if "turbina" in text_hint or _has_turbine_signature(plan):
+        route_steps.append("Assinatura forte detectada: turbina de vapor.")
+        return "turbina_vapor_adiabatica", tuple(route_steps)
+    if _has_standard_cycle_signature(plan, text_hint):
+        route_steps.append("Assinatura forte detectada: ciclo padrao de refrigeracao.")
+        return "ciclo_refrigeracao_padrao_pressao", tuple(route_steps)
+    if _has_evaporator_signature(plan, text_hint):
+        route_steps.append("Assinatura forte detectada: evaporador com ar e R134a.")
+        return "evaporador_ar_refrigerante", tuple(route_steps)
+    if _has_reservoir_signature(plan, text_hint):
+        route_steps.append("Assinatura forte detectada: refrigerador entre reservatorios.")
+        return "refrigerador_reservatorios", tuple(route_steps)
     return "", tuple(route_steps)
 
 

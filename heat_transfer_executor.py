@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from heat_transfer_assistant import HeatTransferPlan
-from heat_transfer_catalog import supported_tool_names
+from heat_transfer_catalog import HEAT_TRANSFER_TOOLS, supported_tool_names
 from heat_transfer_core import (
     HeatTransferCalculationError,
     HeatTransferResult,
@@ -220,14 +220,23 @@ def main_heat_transfer_tool(plan: HeatTransferPlan) -> str:
             )
         )
     )
+    normalized_tools = tuple(normalize_heat_text(item) for item in plan.ferramentas_necessarias)
+    tool_scores = {tool.name: _heat_transfer_tool_score(tool, joined, normalized_tools) for tool in HEAT_TRANSFER_TOOLS}
+    ranked_tools = sorted(tool_scores.items(), key=lambda item: (item[1], item[0]), reverse=True)
+
     if "aleta" in joined or "fin" in joined:
-        if "base" in joined or "superficie" in joined or "numero" in joined or "quantidade" in joined or "49" in joined:
+        if "base" in joined or "superficie" in joined or "numero" in joined or "quantidade" in joined or "aletas" in joined:
             return "aleta_superficie_aletada"
         return "aleta_reta_ponta_adiabatica"
+
     if "tubo" in joined and ("vapor" in joined or "steam" in joined or "condens" in joined):
         return "trocador_tubo_concentrico_vapor"
 
-    normalized_tools = tuple(normalize_heat_text(item) for item in plan.ferramentas_necessarias)
+    if ranked_tools and ranked_tools[0][1] >= 4:
+        best_tool = ranked_tools[0][0]
+        if best_tool in supported_tool_names():
+            return best_tool
+
     for supported_tool in supported_tool_names():
         normalized_supported = normalize_heat_text(supported_tool)
         if any(normalized_supported in tool for tool in normalized_tools):
@@ -263,7 +272,30 @@ def main_heat_transfer_tool(plan: HeatTransferPlan) -> str:
         return "radiacao_superficie_vizinhanca"
     if "conduc" in joined or "parede" in joined:
         return "conducao_plana_1d"
-    return ""
+    return ranked_tools[0][0] if ranked_tools and ranked_tools[0][1] > 0 else ""
+
+
+def _heat_transfer_tool_score(tool, joined: str, normalized_tools: tuple[str, ...]) -> int:
+    score = 0
+    name_tokens = normalize_heat_text(tool.name)
+    label_tokens = normalize_heat_text(tool.label)
+    category_tokens = normalize_heat_text(tool.category)
+    description_tokens = normalize_heat_text(tool.description)
+
+    if any(token and token in joined for token in (name_tokens, label_tokens, category_tokens)):
+        score += 4
+    if any(token in joined for token in description_tokens.split()[:8]):
+        score += 1
+    for hint in tool.selection_hints:
+        if normalize_heat_text(hint) in joined:
+            score += 3
+    for required in tool.required:
+        normalized_required = normalize_heat_text(required)
+        if required in {"k", "h", "A", "A_c", "A_base", "P", "L", "T_1", "T_2", "T_s", "T_inf", "T_sur"} and normalized_required in joined:
+            score += 1
+    if any(normalize_heat_text(tool.name) in text for text in normalized_tools):
+        score += 5
+    return score
 
 
 def _required(facts: dict[str, CanonicalHeatFact], name: str) -> float:

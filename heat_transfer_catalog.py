@@ -11,6 +11,7 @@ class HeatTransferToolSpec:
     required: tuple[str, ...]
     outputs: tuple[str, ...]
     description: str
+    selection_hints: tuple[str, ...] = ()
 
 
 HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
@@ -21,6 +22,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("k", "A", "L", "T_1", "T_2"),
         outputs=("R_cond", "q_dot", "q_flux"),
         description="Parede plana estacionária com condução unidimensional.",
+        selection_hints=("parede plana", "camada plana", "placa", "conducao", "k, A e L"),
     ),
     HeatTransferToolSpec(
         name="conducao_radial_cilindro",
@@ -29,6 +31,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("k", "L", "r_i", "r_o", "T_i|T_1", "T_o|T_2"),
         outputs=("R_cil", "q_dot"),
         description="Parede cilíndrica ou tubo com condução radial estacionária.",
+        selection_hints=("cilindro", "tubo", "parede cilíndrica", "raios interno e externo"),
     ),
     HeatTransferToolSpec(
         name="conducao_radial_esfera",
@@ -37,6 +40,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("k", "r_i", "r_o", "T_i|T_1", "T_o|T_2"),
         outputs=("R_esf", "q_dot"),
         description="Casca esférica com condução radial estacionária.",
+        selection_hints=("esfera", "casca esferica", "raio interno e externo"),
     ),
     HeatTransferToolSpec(
         name="conveccao_newton",
@@ -45,6 +49,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("h", "A", "T_s", "T_inf"),
         outputs=("R_conv", "q_dot"),
         description="Lei de Newton do resfriamento para superfície em contato com fluido.",
+        selection_hints=("conveccao", "superficie exposta", "h e A", "newton"),
     ),
     HeatTransferToolSpec(
         name="radiacao_superficie_vizinhanca",
@@ -53,6 +58,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("epsilon", "A", "T_s", "T_sur"),
         outputs=("q_dot_rad",),
         description="Troca radiativa entre superfície cinzenta e vizinhança grande.",
+        selection_hints=("radiacao", "emissividade", "vizinhança", "superficie cinzenta"),
     ),
     HeatTransferToolSpec(
         name="rede_resistencias_serie",
@@ -61,6 +67,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("R_list", "T_hot", "T_cold"),
         outputs=("R_eq", "q_dot"),
         description="Rede térmica com resistências em série entre dois níveis de temperatura.",
+        selection_hints=("rede", "serie", "resistencias termicas"),
     ),
     HeatTransferToolSpec(
         name="rede_resistencias_paralelo",
@@ -69,6 +76,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("R_list", "T_hot", "T_cold"),
         outputs=("R_eq", "q_dot", "q_dot_i"),
         description="Rede térmica com ramos paralelos entre os mesmos nós quente e frio.",
+        selection_hints=("rede", "paralelo", "ramos", "resistencias termicas"),
     ),
     HeatTransferToolSpec(
         name="aleta_reta_ponta_adiabatica",
@@ -77,6 +85,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("h", "P", "k", "A_c", "L", "T_b", "T_inf"),
         outputs=("m", "A_f", "eta_f", "epsilon_f", "q_dot_fin"),
         description="Aleta reta de seção constante com ponta adiabática.",
+        selection_hints=("aleta", "fin", "ponta adiabatica", "seção constante"),
     ),
     HeatTransferToolSpec(
         name="capacitancia_concentrada",
@@ -85,6 +94,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("h", "A", "rho", "V", "c_p", "k", "T_i", "T_inf", "t"),
         outputs=("L_c", "Bi", "tau", "T_t", "Q"),
         description="Transiente lumped com validação obrigatória Bi < 0,1.",
+        selection_hints=("transiente", "capacitancia", "biot", "bi < 0,1"),
     ),
     HeatTransferToolSpec(
         name="trocador_lmtd",
@@ -93,6 +103,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("U", "A", "T_h_in", "T_h_out", "T_c_in", "T_c_out", "flow_type"),
         outputs=("Delta_T_1", "Delta_T_2", "Delta_T_lm", "q_dot"),
         description="Trocador de calor em regime permanente resolvido pela diferença média logarítmica de temperatura.",
+        selection_hints=("lmtd", "dtlm", "diferenca media logaritmica", "trocador"),
     ),
     HeatTransferToolSpec(
         name="trocador_ntu",
@@ -101,6 +112,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("C_h", "C_c", "UA", "T_h_in", "T_c_in", "flow_type"),
         outputs=("C_min", "C_r", "NTU", "epsilon_hx", "q_dot", "T_h_out", "T_c_out"),
         description="Trocador de calor resolvido por efetividade-NTU com correntes paralelas ou contracorrentes.",
+        selection_hints=("ntu", "efetividade", "epsilon", "trocador"),
     ),
     HeatTransferToolSpec(
         name="conveccao_forcada_dittus_boelter",
@@ -109,6 +121,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("rho", "velocity", "D", "mu", "c_p", "k", "mode"),
         outputs=("Re", "Pr", "Nu", "h"),
         description="Correlação Dittus-Boelter para escoamento interno turbulento em tubo liso.",
+        selection_hints=("dittus", "boelter", "nusselt", "reynolds", "prandtl"),
     ),
     HeatTransferToolSpec(
         name="conveccao_placa_plana_externa",
@@ -117,6 +130,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("fluid", "V", "L", "W", "T_s", "T_inf"),
         outputs=("Re_L", "Pr", "Nu_L", "h", "q_dot"),
         description="Convecção externa em placa plana com seleção de regime laminar, turbulento ou misto.",
+        selection_hints=("placa plana", "superficie plana", "ar externo", "placa externa"),
     ),
     HeatTransferToolSpec(
         name="conveccao_interna_tubo_iterativa",
@@ -125,6 +139,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("fluid", "D", "L", "V", "T_in", "T_w"),
         outputs=("mdot", "Re", "Pr", "Nu", "h", "T_out", "q_dot", "delta_p"),
         description="Convecção interna em tubo com propriedades iteradas na temperatura média e queda de pressão estimada.",
+        selection_hints=("tubo", "entrada", "saida", "temperatura da parede", "conveccao interna"),
     ),
     HeatTransferToolSpec(
         name="conducao_transiente_placa",
@@ -133,6 +148,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("k", "rho", "cp", "L", "A", "h", "T_i", "T_inf", "t"),
         outputs=("L_c", "Bi", "Fo", "T_center", "T_surface", "Q"),
         description="Placa plana resfriada dos dois lados com critério de Biot e fallback para solução distribuída.",
+        selection_hints=("transiente", "biot", "fo", "placa", "dois lados"),
     ),
     HeatTransferToolSpec(
         name="asa_plana_radiacao_solar",
@@ -141,6 +157,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("fluid", "V", "L", "W", "q_solar", "T_inf"),
         outputs=("h", "T_s", "q_dot"),
         description="Asa ou placa plana aquecida por radiação solar e resfriada por convecção nas duas faces.",
+        selection_hints=("solar", "asa", "placa", "radiação solar"),
     ),
     HeatTransferToolSpec(
         name="aleta_superficie_aletada",
@@ -149,6 +166,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("h", "P", "k", "A_c", "L", "A_base", "N", "T_b", "T_inf"),
         outputs=("m", "A_f", "eta_f", "A_base_exp", "q_dot_fin", "q_total", "q_sem_aletas", "eta_o", "epsilon_o", "ganho_percentual"),
         description="Placa aletada com N aletas retas, area da base exposta e ganho global de transferencia de calor.",
+        selection_hints=("aleta", "superficie aletada", "numero de aletas", "base exposta"),
     ),
     HeatTransferToolSpec(
         name="trocador_tubo_concentrico_vapor",
@@ -157,6 +175,7 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         required=("fluid", "D_i", "D_o", "L", "V", "T_in", "T_steam", "k"),
         outputs=("R_cond", "T_wi", "h_i", "q_dot", "T_out", "R_th", "A_i"),
         description="Tubo concentric aquecido por vapor quase isotermo, acoplando conducao cilindrica e conveccao interna.",
+        selection_hints=("tubo", "vapor", "condensacao", "concentrico", "trocador"),
     ),
 )
 
@@ -176,4 +195,6 @@ def heat_transfer_tool_catalog_prompt() -> str:
         required = ", ".join(tool.required)
         outputs = ", ".join(tool.outputs)
         lines.append(f"- {tool.name}: {tool.description} Entradas: {required}. Saídas: {outputs}.")
+        if tool.selection_hints:
+            lines.append(f"  Gatilhos de selecao: {', '.join(tool.selection_hints)}.")
     return "\n".join(lines)

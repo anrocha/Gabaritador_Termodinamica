@@ -373,6 +373,7 @@ def _build_input_content(statement: str, uploaded_files: list[dict[str, Any]] | 
                 "Leia texto, diagramas, legendas, rotulos, setas, anotacoes e observacoes pequenas. "
                 "Use o texto digitado como complemento ou correcao explicita da imagem. "
                 "Considere a figura como fonte primaria das relacoes entre estados e do tipo de ciclo. "
+                "Use o catalogo de ferramentas como tabela de decisao e mapeie a assinatura do problema antes de marcar dados faltantes. "
                 "Nao repita como faltante o que ja estiver visivel ou dedutivel no desenho."
             ),
         }
@@ -608,6 +609,7 @@ Voce NAO deve calcular propriedades numericas que o CoolProp pode obter. Essas p
 
 Regras obrigatorias:
 - Responda apenas JSON valido no schema solicitado.
+- Use o catalogo abaixo como tabela de decisao: primeiro identifique a assinatura do problema, depois escolha a ferramenta principal e so depois detalhe propriedades auxiliares.
 - Use nomes de ferramentas exatamente como estao no catalogo.
 - Classifique antes de calcular: sistema fisico, categoria, estados, hipoteses e objetivos.
 - Leia integralmente texto, imagem, diagramas, legendas, rotulos, setas, e observacoes pequenas.
@@ -632,6 +634,8 @@ Regras obrigatorias:
 - Para "ciclo padrao" de refrigeracao por compressao de vapor com duas pressoes, mdot, ponto 1 vapor saturado, estado 3 liquido saturado, s1=s2 e h4=h3, use ciclo_refrigeracao_padrao_pressao.
 - Nao classifique ciclo padrao por pressoes como evaporador_ar_refrigerante.
 - Para evaporador/trocador com ar e R134a, use evaporador_ar_refrigerante somente quando ar for uma corrente separada com dados proprios, como vazao de ar, pressao do ar ou temperatura do ar; nao use essa ferramenta apenas porque um ciclo tem evaporador.
+- Se a imagem e o texto mostrarem dados suficientes para uma assinatura forte de ferramenta, nao marque esses dados como faltantes so porque outra ferramenta tambem poderia resolver o problema.
+- Ferramentas auxiliares podem completar o raciocinio, mas a ferramenta principal deve vir da assinatura do enunciado e do catalogo.
 - Valvula de expansao em ciclo de refrigeracao e processo isoentalpico: h4=h3. Nao descreva como isentropico.
 - Se houver mais de uma ferramenta, liste primeiro a ferramenta principal executavel e depois ferramentas auxiliares de propriedades.
 - Ferramentas auxiliares como estado_por_tp, estado_por_par e titulo_mistura ajudam a explicar propriedades, mas nao substituem a ferramenta principal do problema.

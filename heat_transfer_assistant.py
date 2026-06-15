@@ -216,6 +216,7 @@ def _build_heat_transfer_input(statement: str, uploaded_files: list[dict[str, An
                 "Interprete texto e arquivos como um unico enunciado de Transferencia de Calor. "
                 "Leia diagramas, geometrias, camadas, setas, legendas, unidades, dimensoes e observacoes pequenas. "
                 "O usuario ja escolheu a aba de Transferencia de Calor; nao classifique como Termodinamica. "
+                "Use o catalogo de ferramentas como tabela de decisao e mapeie a assinatura do fenomeno antes de marcar dados faltantes. "
                 "Nao invente propriedades de material ausentes. Marque faltante apenas o que nao estiver visivel nem dedutivel."
             ),
         }
@@ -287,6 +288,7 @@ Ferramentas deterministicas disponiveis neste MVP:
 {heat_transfer_tool_catalog_prompt()}
 
 Regras:
+- Use o catalogo abaixo como tabela de decisao: identifique a assinatura do fenomeno, escolha a ferramenta principal e depois detalhe as etapas.
 - Classifique o fenomeno antes da ferramenta.
 - Extraia dados de texto, imagem, diagramas, geometrias, camadas, setas, legendas, dimensoes e unidades.
 - Separe interpretacao_imagem, texto_usuario, entrada_oficial e diagnostico_entrada.
@@ -294,6 +296,7 @@ Regras:
 - Grandezas calculaveis pela ferramenta, como q_dot, q_flux, R_th e Bi, nao entram em dados_faltantes.
 - Para aletas e superficies aletadas, A_c, P, A_f, N, A_base, eta_f, eta_o, q_dot_fin, q_total e q_sem_aletas tambem sao derivaveis quando a geometria ja esta descrita.
 - Se a secao da aleta for quadrada e a geometria indicar dimensoes como 4 x 4 mm, derive P e A_c a partir das dimensoes em vez de marcá-los como faltantes.
+- Se a assinatura do problema apontar claramente para aleta, trocador ou conveccao interna/externa, nao rebaixe a classificacao para conducao plana apenas porque k tambem aparece como dado.
 - Se imagem e texto divergirem, registre o conflito em diagnostico_entrada e priorize texto explicito do usuario.
 - Use nomes canonicos: T_1, T_2, T_s, T_inf, T_sur, L, A, r_i, r_o, D, k, h, epsilon, q_dot, q_flux, R_th, Bi, Fo.
 - Para placa aletada use aleta_superficie_aletada; para placa plana externa use conveccao_placa_plana_externa; para tubo interno use conveccao_interna_tubo_iterativa; para tubo concêntrico com vapor use trocador_tubo_concentrico_vapor; para placa transiente use conducao_transiente_placa; para asa/placa com sol use asa_plana_radiacao_solar.
