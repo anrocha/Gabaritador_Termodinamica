@@ -641,7 +641,7 @@ def _apply_plan_to_manual_widgets(plan: HeatTransferPlan) -> bool:
                 "ht_fin_k": _fact(facts, "k"),
                 "ht_fin_ac": _fact(facts, "A_c"),
                 "ht_fin_l": _fact(facts, "L"),
-                "ht_fin_tb": _fact(facts, "T_b"),
+                "ht_fin_tb": _fact(facts, "T_b", "T_s"),
                 "ht_fin_tinf": _fact(facts, "T_inf"),
             }
         )
@@ -953,7 +953,7 @@ def _symbols_for_heat_question(question, result: HeatTransferResult) -> set[str]
         (("fluxo", "q''", "q fluxo"), ("q_flux",)),
         (("taxa de calor", "calor", "q dot", "qdot", "potencia termica"), ("q_dot", "q_dot_rad", "q_dot_fin")),
         (("resistencia", "r eq", "req"), ("R_eq", "R_cond", "R_cil", "R_esf", "R_conv")),
-        (("temperatura", "saida", "entrada", "t out", "t in"), ("T_t", "T_h_out", "T_c_out", "T_h_in", "T_c_in", "T_center", "T_surface", "T_out", "T_w", "T_s")),
+        (("temperatura", "saida", "entrada", "t out", "t in"), ("T_t", "T_h_out", "T_c_out", "T_h_in", "T_c_in", "T_center", "T_surface", "T_out", "T_w", "T_s", "T_b")),
         (("lmtd", "dtlm", "media logaritmica", "delta t lm"), ("Delta_T_lm", "Delta_T_1", "Delta_T_2")),
         (("ntu",), ("NTU",)),
         (("efetividade", "epsilon"), ("epsilon_hx", "epsilon_f")),

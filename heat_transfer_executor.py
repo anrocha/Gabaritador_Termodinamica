@@ -88,7 +88,7 @@ def execute_heat_transfer_plan(plan: HeatTransferPlan) -> HeatTransferResult:
             _required(facts, "k"),
             _required(facts, "A_c"),
             _required(facts, "L"),
-            _required(facts, "T_b"),
+            _required_any(facts, ("T_b", "T_s", "T_1")),
             _required(facts, "T_inf"),
         )
     if tool == "capacitancia_concentrada":
