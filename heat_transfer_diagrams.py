@@ -25,6 +25,8 @@ def build_heat_transfer_figure(result: HeatTransferResult):
         return _thermal_resistance_network_figure(result, "paralelo")
     if result.tool == "aleta_reta_ponta_adiabatica":
         return _fin_figure(result)
+    if result.tool == "aleta_superficie_aletada":
+        return _finned_surface_figure(result)
     if result.tool == "capacitancia_concentrada":
         return _lumped_capacitance_figure(result)
     if result.tool == "trocador_lmtd":
@@ -37,6 +39,8 @@ def build_heat_transfer_figure(result: HeatTransferResult):
         return _flat_plate_convection_figure(result)
     if result.tool == "conveccao_interna_tubo_iterativa":
         return _tube_internal_convection_figure(result)
+    if result.tool == "trocador_tubo_concentrico_vapor":
+        return _concentric_tube_vapor_figure(result)
     if result.tool == "conducao_transiente_placa":
         return _transient_plate_figure(result)
     if result.tool == "asa_plana_radiacao_solar":
@@ -314,6 +318,33 @@ def _dimensionless_numbers_figure(result: HeatTransferResult):
     return fig
 
 
+def _finned_surface_figure(result: HeatTransferResult):
+    values = _data_dict(result)
+    base_temperature = values.get("T_b", 0.0)
+    fluid_temperature = values.get("T_inf", 0.0)
+    fin_count = int(round(values.get("N", 0.0)))
+    heat_rate = _result_value(result, "q_total")
+    q_sem = _result_value(result, "q_sem_aletas")
+    eta_o = _result_value(result, "eta_o")
+    ganho = _result_value(result, "ganho_percentual")
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    ax.axis("off")
+    ax.add_patch(plt.Rectangle((0.12, 0.22), 0.66, 0.2, facecolor="#d8e1ea", edgecolor="#0057a6", linewidth=2))
+    fin_positions = [0.18 + 0.56 * i / max(fin_count - 1, 1) for i in range(min(fin_count, 9))] if fin_count else [0.4]
+    for x_pos in fin_positions:
+        ax.add_patch(plt.Rectangle((x_pos, 0.42), 0.02, 0.32, facecolor="#eef4fb", edgecolor="#0057a6", linewidth=1.2))
+        ax.annotate("", xy=(x_pos + 0.01, 0.84), xytext=(x_pos + 0.01, 0.74), arrowprops={"arrowstyle": "->", "color": "#f58220", "lw": 1.6})
+        ax.annotate("", xy=(x_pos + 0.01, 0.2), xytext=(x_pos + 0.01, 0.36), arrowprops={"arrowstyle": "->", "color": "#f58220", "lw": 1.4})
+    ax.text(0.45, 0.12, f"49 aletas | q_total={heat_rate:.3g} W | q_sem={q_sem:.3g} W", ha="center", fontsize=10, weight="bold")
+    ax.text(0.45, 0.9, f"eta_o={eta_o:.3g} | ganho={ganho:.3g}%", ha="center", fontsize=10)
+    ax.text(0.12, 0.48, f"Tb={base_temperature:.3g} °C", ha="left", fontsize=10)
+    ax.text(0.84, 0.48, f"Tinf={fluid_temperature:.3g} °C", ha="right", fontsize=10)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    _style_figure(fig)
+    return fig
+
+
 def _flat_plate_convection_figure(result: HeatTransferResult):
     values = _data_dict(result)
     length = values.get("L", 1.0)
@@ -360,6 +391,38 @@ def _tube_internal_convection_figure(result: HeatTransferResult):
     ax.text(0.78, 0.12, f"Δp={delta_p:.3g} Pa", ha="right", fontsize=10)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
+    _style_figure(fig)
+    return fig
+
+
+def _concentric_tube_vapor_figure(result: HeatTransferResult):
+    values = _data_dict(result)
+    diameter_inner = values.get("D_i", values.get("D", 0.0))
+    diameter_outer = values.get("D_o", values.get("D_ext", 0.0))
+    t_in = values.get("T_in", 0.0)
+    t_out = _result_value(result, "T_out")
+    t_wi = _result_value(result, "T_wi")
+    q_dot = _result_value(result, "q_dot")
+    fig, ax = plt.subplots(figsize=(6.6, 4.4))
+    ax.set_aspect("equal")
+    ax.axis("off")
+    theta = [2 * pi * i / 240 for i in range(241)]
+    inner_radius = 0.26
+    outer_radius = 0.42
+    for radius, color, label in (
+        (outer_radius, "#d8e1ea", "$D_o$"),
+        (inner_radius, "#ffffff", "$D_i$"),
+    ):
+        x_values = [radius * cos(t) for t in theta]
+        y_values = [radius * sin(t) for t in theta]
+        ax.fill(x_values, y_values, color=color, edgecolor="#0057a6", linewidth=2)
+        ax.text(radius / 2.0, 0.04, label, color="#003f7a", fontsize=12)
+    ax.annotate("", xy=(0.95, 0), xytext=(0.42, 0), arrowprops={"arrowstyle": "->", "color": "#f58220", "lw": 2.5})
+    ax.text(0, 0.56, "vapor", ha="center", fontsize=11, weight="bold")
+    ax.text(0, -0.62, f"Tin={t_in:.3g} °C | Tout={t_out:.3g} °C | Twi={t_wi:.3g} °C", ha="center", fontsize=10)
+    ax.text(0, -0.76, f"D_i={diameter_inner:.3g} m | D_o={diameter_outer:.3g} m | q={q_dot:.3g} W", ha="center", fontsize=10, weight="bold")
+    ax.set_xlim(-1.0, 1.0)
+    ax.set_ylim(-0.95, 0.95)
     _style_figure(fig)
     return fig
 

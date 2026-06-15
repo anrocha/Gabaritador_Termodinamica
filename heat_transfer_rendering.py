@@ -25,6 +25,8 @@ from heat_transfer_core import (
     calculate_series_resistance_network,
 )
 from heat_transfer_quickwin import (
+    calculate_concentric_tube_vapor_heat_exchange,
+    calculate_finned_surface_plate,
     calculate_external_flat_plate_convection,
     calculate_internal_tube_convection,
     calculate_plane_transient_bidirectional,
@@ -95,9 +97,11 @@ def _render_input_panel() -> HeatTransferResult | None:
             "Rede de resistências - série",
             "Rede de resistências - paralelo",
             "Aleta reta - ponta adiabática",
+            "Superfície aletada em placa",
             "Capacitância concentrada",
             "Condução transiente em placa",
             "Trocador LMTD",
+            "Tubo concêntrico com vapor",
             "Trocador Efetividade-NTU",
             "Asa/placa com radiação solar",
             "Convecção forçada - Dittus-Boelter",
@@ -126,12 +130,16 @@ def _render_input_panel() -> HeatTransferResult | None:
             return _resistance_network_inputs("paralelo")
         if tool == "Aleta reta - ponta adiabática":
             return _fin_inputs()
+        if tool == "Superfície aletada em placa":
+            return _finned_surface_inputs()
         if tool == "Capacitância concentrada":
             return _lumped_inputs()
         if tool == "Condução transiente em placa":
             return _transient_plate_inputs()
         if tool == "Trocador LMTD":
             return _lmtd_inputs()
+        if tool == "Tubo concêntrico com vapor":
+            return _concentric_tube_vapor_inputs()
         if tool == "Trocador Efetividade-NTU":
             return _ntu_inputs()
         if tool == "Asa/placa com radiação solar":
@@ -209,6 +217,31 @@ def _internal_tube_inputs() -> HeatTransferResult | None:
     pressure = st.number_input("Pressão [Pa]", value=101325.0, min_value=0.0, step=1000.0, format="%.6f", key="ht_tube_p")
     if st.button("Calcular tubo interno", type="primary", use_container_width=True, key="ht_tube_calc"):
         return calculate_internal_tube_convection(fluid, diameter, length, velocity, inlet_temperature, wall_temperature, pressure)
+    return None
+
+
+def _concentric_tube_vapor_inputs() -> HeatTransferResult | None:
+    fluid = st.selectbox("Fluido interno", ("Water", "Air"), key="ht_ctv_fluid")
+    inner_diameter = st.number_input("DiÃ¢metro interno Di [m]", value=0.025, min_value=0.0, step=0.005, format="%.6f", key="ht_ctv_di")
+    outer_diameter = st.number_input("DiÃ¢metro externo Do [m]", value=0.03, min_value=0.0, step=0.005, format="%.6f", key="ht_ctv_do")
+    length = st.number_input("Comprimento L [m]", value=2.0, min_value=0.0, step=0.1, format="%.6f", key="ht_ctv_l")
+    velocity = st.number_input("Velocidade V [m/s]", value=1.5, min_value=0.0, step=0.1, format="%.6f", key="ht_ctv_v")
+    inlet_temperature = st.number_input("Temperatura de entrada Tin [Â°C]", value=20.0, step=5.0, format="%.6f", key="ht_ctv_tin")
+    steam_temperature = st.number_input("Temperatura do vapor Tsteam [Â°C]", value=100.0, step=5.0, format="%.6f", key="ht_ctv_tsteam")
+    conductivity = st.number_input("Condutividade k [W/(m.K)]", value=45.0, min_value=0.0, step=1.0, format="%.6f", key="ht_ctv_k")
+    pressure = st.number_input("PressÃ£o [Pa]", value=101325.0, min_value=0.0, step=1000.0, format="%.6f", key="ht_ctv_p")
+    if st.button("Calcular tubo concÃªntrico com vapor", type="primary", use_container_width=True, key="ht_ctv_calc"):
+        return calculate_concentric_tube_vapor_heat_exchange(
+            fluid,
+            inner_diameter,
+            outer_diameter,
+            length,
+            velocity,
+            inlet_temperature,
+            steam_temperature,
+            conductivity,
+            pressure,
+        )
     return None
 
 
@@ -293,6 +326,31 @@ def _fin_inputs() -> HeatTransferResult | None:
             conductivity,
             cross_section_area,
             length,
+            base_temperature,
+            fluid_temperature,
+        )
+    return None
+
+
+def _finned_surface_inputs() -> HeatTransferResult | None:
+    coefficient = st.number_input("Coeficiente h [W/(mÂ².K)]", value=40.0, min_value=0.0, step=1.0, format="%.6f", key="ht_fin_surface_h")
+    perimeter = st.number_input("PerÃ­metro molhado P [m]", value=0.016, min_value=0.0, step=0.001, format="%.6f", key="ht_fin_surface_p")
+    conductivity = st.number_input("Condutividade k [W/(m.K)]", value=177.0, min_value=0.0, step=1.0, format="%.6f", key="ht_fin_surface_k")
+    cross_section_area = st.number_input("Ãrea da seÃ§Ã£o Ac [mÂ²]", value=16e-6, min_value=0.0, step=1e-6, format="%.8f", key="ht_fin_surface_ac")
+    length = st.number_input("Comprimento L [m]", value=0.02, min_value=0.0, step=0.001, format="%.6f", key="ht_fin_surface_l")
+    base_area = st.number_input("Ãrea da base A_base [mÂ²]", value=0.0025, min_value=0.0, step=0.0001, format="%.6f", key="ht_fin_surface_abase")
+    fin_count = st.number_input("Numero de aletas N", value=49.0, min_value=0.0, step=1.0, format="%.0f", key="ht_fin_surface_n")
+    base_temperature = st.number_input("Temperatura da base Tb [Â°C]", value=100.0, step=5.0, format="%.6f", key="ht_fin_surface_tb")
+    fluid_temperature = st.number_input("Temperatura do fluido Tâˆž [Â°C]", value=20.0, step=5.0, format="%.6f", key="ht_fin_surface_tinf")
+    if st.button("Calcular superficie aletada", type="primary", use_container_width=True, key="ht_fin_surface_calc"):
+        return calculate_finned_surface_plate(
+            coefficient,
+            perimeter,
+            conductivity,
+            cross_section_area,
+            length,
+            base_area,
+            fin_count,
             base_temperature,
             fluid_temperature,
         )
@@ -646,6 +704,22 @@ def _apply_plan_to_manual_widgets(plan: HeatTransferPlan) -> bool:
             }
         )
         return True
+    if tool == "aleta_superficie_aletada":
+        _set_widget_values(
+            {
+                "ht_tool": "Superfície aletada em placa",
+                "ht_fin_surface_h": _fact(facts, "h"),
+                "ht_fin_surface_p": _fact(facts, "P"),
+                "ht_fin_surface_k": _fact(facts, "k"),
+                "ht_fin_surface_ac": _fact(facts, "A_c"),
+                "ht_fin_surface_l": _fact(facts, "L"),
+                "ht_fin_surface_abase": _fact(facts, "A_base", "A"),
+                "ht_fin_surface_n": _fact(facts, "N"),
+                "ht_fin_surface_tb": _fact(facts, "T_b", "T_s"),
+                "ht_fin_surface_tinf": _fact(facts, "T_inf"),
+            }
+        )
+        return True
     if tool == "capacitancia_concentrada":
         _set_widget_values(
             {
@@ -732,6 +806,22 @@ def _apply_plan_to_manual_widgets(plan: HeatTransferPlan) -> bool:
             }
         )
         return True
+    if tool == "trocador_tubo_concentrico_vapor":
+        _set_widget_values(
+            {
+                "ht_tool": "Tubo concêntrico com vapor",
+                "ht_ctv_fluid": _fluid_for_widgets(plan, default="Water"),
+                "ht_ctv_di": _diameter_fact(facts, ("D_i", "D"), "r_i"),
+                "ht_ctv_do": _diameter_fact(facts, ("D_o", "D_out", "D_ext"), "r_o"),
+                "ht_ctv_l": _fact(facts, "L"),
+                "ht_ctv_v": _fact(facts, "velocity"),
+                "ht_ctv_tin": _fact(facts, "T_in", "T_1"),
+                "ht_ctv_tsteam": _fact(facts, "T_steam", "T_hot", "T_s"),
+                "ht_ctv_k": _fact(facts, "k"),
+                "ht_ctv_p": _fact(facts, "pressure"),
+            }
+        )
+        return True
     if tool == "conducao_transiente_placa":
         _set_widget_values(
             {
@@ -808,6 +898,15 @@ def _fact(facts, *names: str) -> float | None:
     for name in names:
         if name in facts:
             return facts[name].value
+    return None
+
+
+def _diameter_fact(facts, diameter_names: tuple[str, ...], radius_name: str) -> float | None:
+    for diameter_name in diameter_names:
+        if diameter_name in facts:
+            return facts[diameter_name].value
+    if radius_name in facts:
+        return 2.0 * facts[radius_name].value
     return None
 
 

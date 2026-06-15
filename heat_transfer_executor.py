@@ -20,6 +20,8 @@ from heat_transfer_core import (
 )
 from heat_transfer_quickwin import (
     calculate_external_flat_plate_convection,
+    calculate_concentric_tube_vapor_heat_exchange,
+    calculate_finned_surface_plate,
     calculate_internal_tube_convection,
     calculate_plane_transient_bidirectional,
     calculate_solar_plate_balance,
@@ -84,10 +86,22 @@ def execute_heat_transfer_plan(plan: HeatTransferPlan) -> HeatTransferResult:
     if tool == "aleta_reta_ponta_adiabatica":
         return calculate_straight_fin_adiabatic_tip(
             _required(facts, "h"),
-            _required(facts, "P"),
+            _perimeter_from_plan(plan, facts),
             _required(facts, "k"),
-            _required(facts, "A_c"),
+            _cross_section_area_from_plan(plan, facts),
             _required(facts, "L"),
+            _required_any(facts, ("T_b", "T_s", "T_1")),
+            _required(facts, "T_inf"),
+        )
+    if tool == "aleta_superficie_aletada":
+        return calculate_finned_surface_plate(
+            _required(facts, "h"),
+            _perimeter_from_plan(plan, facts),
+            _required(facts, "k"),
+            _cross_section_area_from_plan(plan, facts),
+            _required(facts, "L"),
+            _required_any(facts, ("A_base", "A")),
+            _required_any(facts, ("N",)),
             _required_any(facts, ("T_b", "T_s", "T_1")),
             _required(facts, "T_inf"),
         )
@@ -153,6 +167,18 @@ def execute_heat_transfer_plan(plan: HeatTransferPlan) -> HeatTransferResult:
             _required_any(facts, ("T_w", "T_s", "T_2")),
             _optional(facts, "pressure", 101325.0),
         )
+    if tool == "trocador_tubo_concentrico_vapor":
+        return calculate_concentric_tube_vapor_heat_exchange(
+            _fluid_from_plan(plan, default="Water"),
+            _diameter_value(facts, ("D_i", "D"), "r_i"),
+            _diameter_value(facts, ("D_o", "D_out", "D_ext"), "r_o"),
+            _required(facts, "L"),
+            _required(facts, "V"),
+            _required_any(facts, ("T_in", "T_1")),
+            _required_any(facts, ("T_steam", "T_hot", "T_s")),
+            _required(facts, "k"),
+            _optional(facts, "pressure", 101325.0),
+        )
     if tool == "conducao_transiente_placa":
         return calculate_plane_transient_bidirectional(
             _required(facts, "k"),
@@ -182,19 +208,35 @@ def execute_heat_transfer_plan(plan: HeatTransferPlan) -> HeatTransferResult:
 
 
 def main_heat_transfer_tool(plan: HeatTransferPlan) -> str:
+    joined = normalize_heat_text(
+        " ".join(
+            (
+                plan.tipo_problema,
+                plan.categoria,
+                " ".join(plan.objetivos),
+                " ".join(plan.ferramentas_necessarias),
+                plan.entrada_oficial,
+                plan.diagnostico_entrada,
+            )
+        )
+    )
+    if "aleta" in joined or "fin" in joined:
+        if "base" in joined or "superficie" in joined or "numero" in joined or "quantidade" in joined or "49" in joined:
+            return "aleta_superficie_aletada"
+        return "aleta_reta_ponta_adiabatica"
+    if "tubo" in joined and ("vapor" in joined or "steam" in joined or "condens" in joined):
+        return "trocador_tubo_concentrico_vapor"
+
     normalized_tools = tuple(normalize_heat_text(item) for item in plan.ferramentas_necessarias)
     for supported_tool in supported_tool_names():
         normalized_supported = normalize_heat_text(supported_tool)
         if any(normalized_supported in tool for tool in normalized_tools):
             return supported_tool
 
-    joined = normalize_heat_text(" ".join(plan.objetivos) + " " + plan.tipo_problema + " " + plan.categoria)
     if "cilind" in joined:
         return "conducao_radial_cilindro"
     if "esfer" in joined:
         return "conducao_radial_esfera"
-    if "aleta" in joined or "fin" in joined:
-        return "aleta_reta_ponta_adiabatica"
     if "transiente" in joined or "capacitancia" in joined or "biot" in joined:
         return "capacitancia_concentrada"
     if ("resist" in joined or "rede" in joined or "parede composta" in joined) and "paralel" in joined:
@@ -239,6 +281,61 @@ def _required_any(facts: dict[str, CanonicalHeatFact], names: tuple[str, ...]) -
 
 def _optional(facts: dict[str, CanonicalHeatFact], name: str, default: float) -> float:
     return facts[name].value if name in facts else default
+
+
+def _perimeter_from_plan(plan: HeatTransferPlan, facts: dict[str, CanonicalHeatFact]) -> float:
+    if "P" in facts:
+        return facts["P"].value
+    side = _square_section_side_from_plan(plan)
+    if side is not None:
+        return 4.0 * side
+    raise HeatTransferCalculationError("Dado necessário ausente: P.")
+
+
+def _cross_section_area_from_plan(plan: HeatTransferPlan, facts: dict[str, CanonicalHeatFact]) -> float:
+    if "A_c" in facts:
+        return facts["A_c"].value
+    side = _square_section_side_from_plan(plan)
+    if side is not None:
+        return side * side
+    raise HeatTransferCalculationError("Dado necessário ausente: A_c.")
+
+
+def _square_section_side_from_plan(plan: HeatTransferPlan) -> float | None:
+    candidates = tuple(plan.geometria) + tuple(plan.dados_conhecidos) + tuple(plan.fatos_canonicos)
+    for item in candidates:
+        text = normalize_heat_text(" ".join((item.nome, item.valor, item.unidade, item.observacao)))
+        if "quadrada" not in text and "4 x 4" not in text and "4x4" not in text:
+            continue
+        numbers = _numbers_from_text(f"{item.valor} {item.unidade} {item.observacao} {item.nome}")
+        if len(numbers) >= 2 and abs(numbers[0] - numbers[1]) < 1e-9:
+            side = numbers[0]
+            unit = normalize_heat_text(item.unidade)
+            if unit in {"mm", "milimetro", "milimetros"}:
+                return side / 1000.0
+            if unit in {"cm", "centimetro", "centimetros"}:
+                return side / 100.0
+            if unit in {"m", "metro", "metros", ""}:
+                return side
+        if len(numbers) == 1 and "quadrada" in text:
+            side = numbers[0]
+            unit = normalize_heat_text(item.unidade)
+            if unit in {"mm", "milimetro", "milimetros"}:
+                return side / 1000.0
+            if unit in {"cm", "centimetro", "centimetros"}:
+                return side / 100.0
+            if unit in {"m", "metro", "metros", ""}:
+                return side
+    return None
+
+
+def _diameter_value(facts: dict[str, CanonicalHeatFact], diameter_names: tuple[str, ...], radius_name: str) -> float:
+    for diameter_name in diameter_names:
+        if diameter_name in facts:
+            return facts[diameter_name].value
+    if radius_name in facts:
+        return 2.0 * facts[radius_name].value
+    raise HeatTransferCalculationError(f"Dado necessário ausente: {' ou '.join((*diameter_names, radius_name))}.")
 
 
 def _fluid_from_plan(plan: HeatTransferPlan, default: str = "Air") -> str:

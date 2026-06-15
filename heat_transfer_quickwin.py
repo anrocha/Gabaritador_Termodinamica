@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import cos, exp, log, pi, sin, sqrt, tan
 
-from heat_transfer_core import HeatTransferCalculationError, HeatTransferQuantity, HeatTransferResult
+from heat_transfer_core import (
+    HeatTransferCalculationError,
+    HeatTransferQuantity,
+    HeatTransferResult,
+    calculate_straight_fin_adiabatic_tip,
+)
 
 
 def calculate_external_flat_plate_convection(
@@ -364,6 +369,262 @@ def calculate_solar_plate_balance(
         validations=("A formulação assume escoamento paralelo à placa e irradiância uniforme.", "Convecção aplicada nas duas faces."),
         assumptions=("Propriedades avaliadas na temperatura de filme.", "Placa isoterma.", "Sem radiação térmica adicional além do fluxo solar informado."),
     )
+
+
+def calculate_finned_surface_plate(
+    heat_transfer_coefficient: float,
+    perimeter: float,
+    conductivity: float,
+    cross_section_area: float,
+    length: float,
+    base_area: float,
+    fin_count: float,
+    base_temperature_c: float,
+    fluid_temperature_c: float,
+) -> HeatTransferResult:
+    _ensure_positive(heat_transfer_coefficient, "coeficiente convectivo")
+    _ensure_positive(perimeter, "perimetro")
+    _ensure_positive(conductivity, "condutividade termica")
+    _ensure_positive(cross_section_area, "area da secao transversal")
+    _ensure_positive(length, "comprimento da aleta")
+    _ensure_positive(base_area, "area da base")
+    _ensure_positive(fin_count, "numero de aletas")
+    fin_quantity = int(round(fin_count))
+    if abs(fin_quantity - fin_count) > 1e-6:
+        raise HeatTransferCalculationError("O numero de aletas deve ser inteiro.")
+    if fin_quantity <= 0:
+        raise HeatTransferCalculationError("O numero de aletas deve ser positivo.")
+
+    single_fin = calculate_straight_fin_adiabatic_tip(
+        heat_transfer_coefficient,
+        perimeter,
+        conductivity,
+        cross_section_area,
+        length,
+        base_temperature_c,
+        fluid_temperature_c,
+    )
+    theta_b = base_temperature_c - fluid_temperature_c
+    fin_area = _quantity_value(single_fin, "A_f")
+    fin_efficiency = _quantity_value(single_fin, "eta_f")
+    fin_heat_rate = _quantity_value(single_fin, "q_dot_fin")
+    base_exposed_area = base_area - fin_quantity * cross_section_area
+    if base_exposed_area < 0:
+        raise HeatTransferCalculationError("A area da base nao pode ser menor que a soma das areas de raiz das aletas.")
+    total_exposed_area = base_exposed_area + fin_quantity * fin_area
+    heat_with_fins = fin_quantity * fin_heat_rate + heat_transfer_coefficient * base_exposed_area * theta_b
+    heat_without_fins = heat_transfer_coefficient * base_area * theta_b
+    overall_efficiency = heat_with_fins / (heat_transfer_coefficient * total_exposed_area * theta_b) if abs(theta_b) > 1e-12 and total_exposed_area > 0 else 0.0
+    overall_effectiveness = heat_with_fins / heat_without_fins if abs(heat_without_fins) > 1e-12 else 0.0
+    gain_percentage = (overall_effectiveness - 1.0) * 100.0 if abs(heat_without_fins) > 1e-12 else 0.0
+    return HeatTransferResult(
+        tool="aleta_superficie_aletada",
+        title="Superficie aletada em placa plana",
+        interpretation="A superficie combina aletas retas e a base exposta para estimar o ganho total em transferencia de calor.",
+        data_used=(
+            f"h={heat_transfer_coefficient:.6g} W/(m^2.K)",
+            f"P={perimeter:.6g} m",
+            f"k={conductivity:.6g} W/(m.K)",
+            f"A_c={cross_section_area:.6g} m^2",
+            f"L={length:.6g} m",
+            f"A_base={base_area:.6g} m^2",
+            f"N={fin_quantity:.6g} -",
+            f"T_b={base_temperature_c:.6g} C",
+            f"T_inf={fluid_temperature_c:.6g} C",
+        ),
+        formulas=(
+            r"m=\sqrt{\frac{hP}{kA_c}}",
+            r"A_{b,exp}=A_{base}-NA_c",
+            r"q_{total}=N\dot q_f+hA_{b,exp}(T_b-T_\infty)",
+            r"q_{sem}=hA_{base}(T_b-T_\infty)",
+            r"\eta_o=\frac{q_{total}}{hA_t(T_b-T_\infty)}",
+            r"\epsilon_o=\frac{q_{total}}{q_{sem}}",
+        ),
+        substitutions=(
+            rf"A_{{b,exp}}={base_area:.6g}-{fin_quantity:.6g}\cdot {cross_section_area:.6g}={base_exposed_area:.6g}\ \mathrm{{m^2}}",
+            rf"N\dot q_f={fin_quantity:.6g}\cdot {fin_heat_rate:.6g}={fin_quantity * fin_heat_rate:.6g}\ \mathrm{{W}}",
+            rf"q_{{total}}={fin_quantity * fin_heat_rate:.6g}+{heat_transfer_coefficient:.6g}\cdot {base_exposed_area:.6g}\cdot {theta_b:.6g}={heat_with_fins:.6g}\ \mathrm{{W}}",
+            rf"q_{{sem}}={heat_transfer_coefficient:.6g}\cdot {base_area:.6g}\cdot {theta_b:.6g}={heat_without_fins:.6g}\ \mathrm{{W}}",
+            rf"\eta_o=\frac{{{heat_with_fins:.6g}}}{{{heat_transfer_coefficient:.6g}\cdot {total_exposed_area:.6g}\cdot {theta_b:.6g}}}={overall_efficiency:.6g}",
+            rf"\epsilon_o=\frac{{{heat_with_fins:.6g}}}{{{heat_without_fins:.6g}}}={overall_effectiveness:.6g}",
+        ),
+        results=(
+            HeatTransferQuantity("Parametro da aleta", "m", _quantity_value(single_fin, "m"), "1/m", "Controla o decaimento de temperatura ao longo da aleta."),
+            HeatTransferQuantity("Area lateral da aleta", "A_f", fin_area, "m^2", "Area exposta a conveccao por aleta."),
+            HeatTransferQuantity("Eficiencia da aleta", "eta_f", fin_efficiency, "-", "Razao entre calor real e calor ideal da aleta."),
+            HeatTransferQuantity("Area exposta da base", "A_base_exp", base_exposed_area, "m^2", "Area da base ainda exposta ao fluido."),
+            HeatTransferQuantity("Calor de uma aleta", "q_dot_fin", fin_heat_rate, "W", "Calor dissipado por uma unica aleta."),
+            HeatTransferQuantity("Calor total com aletas", "q_total", heat_with_fins, "W", "Calor total dissipado pela superficie aletada."),
+            HeatTransferQuantity("Calor sem aletas", "q_sem_aletas", heat_without_fins, "W", "Calor dissipado pela base sem aletas."),
+            HeatTransferQuantity("Eficiencia global da superficie", "eta_o", overall_efficiency, "-", "Eficiencia global da superficie aletada."),
+            HeatTransferQuantity("Efetividade global da superficie", "epsilon_o", overall_effectiveness, "-", "Ganho relativo em relacao a base nua."),
+            HeatTransferQuantity("Ganho percentual", "ganho_percentual", gain_percentage, "%", "Aumento percentual em relacao a base sem aletas."),
+        ),
+        validations=(
+            f"N = {fin_quantity}.",
+            f"A_base_exp = {base_exposed_area:.6g} m^2.",
+            f"eta_o = {overall_efficiency:.6g}.",
+            f"Ganho percentual = {gain_percentage:.6g} %.",
+        ),
+        assumptions=("Regime permanente.", "Aletas retas de secao constante.", "Ponta adiabatica.", "Propriedades constantes.", "A base exposta usa a area da raiz das aletas como ocupacao geometrica."),
+    )
+
+
+def calculate_concentric_tube_vapor_heat_exchange(
+    fluid: str,
+    inner_diameter: float,
+    outer_diameter: float,
+    length: float,
+    velocity: float,
+    inlet_temperature_c: float,
+    steam_temperature_c: float,
+    conductivity: float,
+    pressure_pa: float = 101325.0,
+) -> HeatTransferResult:
+    _ensure_positive(inner_diameter, "diametro interno")
+    _ensure_positive(outer_diameter, "diametro externo")
+    _ensure_positive(length, "comprimento")
+    _ensure_positive(velocity, "velocidade")
+    _ensure_positive(conductivity, "condutividade termica")
+    _ensure_positive(pressure_pa, "pressao")
+    if outer_diameter <= inner_diameter:
+        raise HeatTransferCalculationError("O diametro externo deve ser maior que o diametro interno.")
+    if abs(steam_temperature_c - inlet_temperature_c) < 1e-9:
+        return HeatTransferResult(
+            tool="trocador_tubo_concentrico_vapor",
+            title="Tubo concentric com vapor em temperatura quase constante",
+            interpretation="Sem diferenca de temperatura util entre o vapor e o fluido interno nao ha troca de calor liquida.",
+            data_used=(
+                f"fluid={fluid}",
+                f"D_i={inner_diameter:.6g} m",
+                f"D_o={outer_diameter:.6g} m",
+                f"L={length:.6g} m",
+                f"V={velocity:.6g} m/s",
+                f"T_in={inlet_temperature_c:.6g} C",
+                f"T_steam={steam_temperature_c:.6g} C",
+                f"k={conductivity:.6g} W/(m.K)",
+                f"P={pressure_pa:.6g} Pa",
+            ),
+            formulas=(r"R_{cond}=\frac{\ln(r_o/r_i)}{2\pi kL}", r"\dot q=0"),
+            substitutions=(r"\Delta T=0",),
+            results=(HeatTransferQuantity("Taxa de calor", "q_dot", 0.0, "W", "Sem fluxo liquido de calor."),),
+            validations=("Delta T nulo entre vapor e fluido interno.",),
+            assumptions=("Sem diferenca de temperatura motriz.",),
+        )
+    inner_radius = inner_diameter / 2.0
+    outer_radius = outer_diameter / 2.0
+    conduction_resistance = log(outer_radius / inner_radius) / (2.0 * pi * conductivity * length)
+    if conduction_resistance <= 0:
+        raise HeatTransferCalculationError("Resistencia de conducao invalida.")
+
+    lower_bound = min(inlet_temperature_c, steam_temperature_c)
+    upper_bound = max(inlet_temperature_c, steam_temperature_c)
+
+    def residual(wall_temperature_c: float) -> float:
+        internal_result = calculate_internal_tube_convection(
+            fluid,
+            inner_diameter,
+            length,
+            velocity,
+            inlet_temperature_c,
+            wall_temperature_c,
+            pressure_pa,
+        )
+        q_internal = _quantity_value(internal_result, "q_dot")
+        q_conduction = (steam_temperature_c - wall_temperature_c) / conduction_resistance
+        return q_conduction - q_internal
+
+    wall_temperature_c = _solve_bracketed_root(residual, lower_bound, upper_bound)
+    internal_result = calculate_internal_tube_convection(
+        fluid,
+        inner_diameter,
+        length,
+        velocity,
+        inlet_temperature_c,
+        wall_temperature_c,
+        pressure_pa,
+    )
+    heat_rate = _quantity_value(internal_result, "q_dot")
+    h_internal = _quantity_value(internal_result, "h")
+    outlet_temperature_c = _quantity_value(internal_result, "T_out")
+    heat_rate_check = (steam_temperature_c - wall_temperature_c) / conduction_resistance
+    area_inner = pi * inner_diameter * length
+    effective_resistance = (steam_temperature_c - inlet_temperature_c) / heat_rate if abs(heat_rate) > 1e-12 else float("inf")
+    return HeatTransferResult(
+        tool="trocador_tubo_concentrico_vapor",
+        title="Tubo concentric com vapor em temperatura quase constante",
+        interpretation="O vapor fornece energia a temperatura quase constante atraves da parede cilidrica e da conveccao interna do fluido.",
+        data_used=(
+            f"fluid={fluid}",
+            f"D_i={inner_diameter:.6g} m",
+            f"D_o={outer_diameter:.6g} m",
+            f"L={length:.6g} m",
+            f"V={velocity:.6g} m/s",
+            f"T_in={inlet_temperature_c:.6g} C",
+            f"T_steam={steam_temperature_c:.6g} C",
+            f"k={conductivity:.6g} W/(m.K)",
+            f"P={pressure_pa:.6g} Pa",
+            f"R_cond={conduction_resistance:.6g} K/W",
+        ),
+        formulas=(
+            r"R_{cond}=\frac{\ln(r_o/r_i)}{2\pi kL}",
+            r"\dot q=\frac{T_{steam}-T_{w,i}}{R_{cond}}",
+            r"\dot q=\dot q_{int}(T_{w,i})",
+        ),
+        substitutions=(
+            rf"R_{{cond}}=\frac{{\ln({outer_radius:.6g}/{inner_radius:.6g})}}{{2\pi\cdot {conductivity:.6g}\cdot {length:.6g}}}={conduction_resistance:.6g}\ \mathrm{{K/W}}",
+            rf"T_{{w,i}}={wall_temperature_c:.6g}\ \mathrm{{^\circ C}}",
+            rf"\dot q_{{cond}}=\frac{{{steam_temperature_c:.6g}-{wall_temperature_c:.6g}}}{{{conduction_resistance:.6g}}}={heat_rate_check:.6g}\ \mathrm{{W}}",
+            rf"\dot q_{{int}}={heat_rate:.6g}\ \mathrm{{W}}",
+            rf"T_{{out}}={outlet_temperature_c:.6g}\ \mathrm{{^\circ C}}",
+        ),
+        results=(
+            HeatTransferQuantity("Resistencia cilindrica", "R_cond", conduction_resistance, "K/W", "Resistencia termica da parede cilindrica."),
+            HeatTransferQuantity("Temperatura da parede interna", "T_wi", wall_temperature_c, "C", "Temperatura da parede em contato com o fluido interno."),
+            HeatTransferQuantity("Coeficiente interno", "h_i", h_internal, "W/(m^2.K)", "Coeficiente convectivo interno obtido iterativamente."),
+            HeatTransferQuantity("Taxa de calor", "q_dot", heat_rate, "W", "Calor transferido pelo tubo."),
+            HeatTransferQuantity("Temperatura de saida", "T_out", outlet_temperature_c, "C", "Temperatura de saida do fluido interno."),
+            HeatTransferQuantity("Resistencia efetiva total", "R_th", effective_resistance, "K/W", "Resistencia termica efetiva entre vapor e entrada do fluido."),
+            HeatTransferQuantity("Area interna", "A_i", area_inner, "m^2", "Area interna molhada."),
+        ),
+        validations=(
+            f"Balanceamento de calor: {heat_rate_check:.6g} W pela conducao e {heat_rate:.6g} W pela conveccao interna.",
+            f"T_wi entre a entrada do fluido e o vapor: {min(inlet_temperature_c, steam_temperature_c):.6g} C a {max(inlet_temperature_c, steam_temperature_c):.6g} C.",
+        ),
+        assumptions=("Vapor em temperatura aproximadamente constante.", "Parede cilindrica uniforme.", "Propriedades internas avaliadas iterativamente.", "Escoamento interno forcado."),
+    )
+
+
+def _quantity_value(result: HeatTransferResult, symbol: str) -> float:
+    for quantity in result.results:
+        if quantity.symbol == symbol:
+            return quantity.value
+    raise HeatTransferCalculationError(f"Resultado intermediario nao encontrado: {symbol}.")
+
+
+def _solve_bracketed_root(function, lower: float, upper: float, iterations: int = 80) -> float:
+    lower_value = function(lower)
+    upper_value = function(upper)
+    if lower_value == 0:
+        return lower
+    if upper_value == 0:
+        return upper
+    if lower_value * upper_value > 0:
+        raise HeatTransferCalculationError("Nao foi possivel isolar uma raiz para o acoplamento termico.")
+    left = lower
+    right = upper
+    for _ in range(iterations):
+        middle = 0.5 * (left + right)
+        middle_value = function(middle)
+        if abs(middle_value) < 1e-9 or abs(right - left) < 1e-9:
+            return middle
+        if lower_value * middle_value <= 0:
+            right = middle
+            upper_value = middle_value
+        else:
+            left = middle
+            lower_value = middle_value
+    return 0.5 * (left + right)
 
 
 def _fluid_properties(fluid: str, temperature_c: float, pressure_pa: float) -> dict[str, float]:

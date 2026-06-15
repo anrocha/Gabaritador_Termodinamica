@@ -5,7 +5,6 @@ from html import escape
 import pandas as pd
 import streamlit as st
 
-from cycle_rendering import render_cycle_tab
 from exercise_rendering import render_exercise_tab
 from heat_transfer_rendering import render_heat_transfer_tab
 from thermo_core import (
@@ -29,7 +28,7 @@ from thermo_core import (
 
 
 st.set_page_config(
-    page_title="Gabaritador de Termodinamica",
+    page_title="Termodinâmica",
     page_icon="T",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -646,7 +645,7 @@ def render_footer() -> None:
 
 
 def render_header() -> None:
-    st.title("Gabaritador de Termodinamica")
+    st.title("Termodinâmica")
     st.caption("Propriedades termodinamicas com CoolProp, referencias Unisinos e calculo de titulo.")
 
 
@@ -927,28 +926,25 @@ def main() -> None:
         fluids = ("Water",)
 
     fluid, reference_state, temperature_unit, pressure_unit = render_shared_controls(fluids)
-    state_tab, pair_state_tab, quality_tab, cycle_tab, heat_transfer_tab, exercise_tab = st.tabs(
+    termodinamica_tab, heat_transfer_tab, state_tab, pair_state_tab, quality_tab = st.tabs(
         [
-            "Propriedades T/P",
-            "Estado por par",
-            "Titulo de mistura",
-            "Ciclo de refrigeracao",
+            "Termodinâmica",
             "Transferência de Calor",
-            "Gabaritador",
+            "Tabela (T/P)",
+            "Estado por Par por Tabela (Avançada)",
+            "Descobrir Título (x)",
         ]
     )
+    with termodinamica_tab:
+        render_exercise_tab(reference_state, temperature_unit, pressure_unit)
+    with heat_transfer_tab:
+        render_heat_transfer_tab(reference_state, temperature_unit, pressure_unit)
     with state_tab:
         render_state_tab(fluid, reference_state, temperature_unit, pressure_unit)
     with pair_state_tab:
         render_pair_state_tab(fluid, reference_state, temperature_unit, pressure_unit)
     with quality_tab:
         render_quality_tab(fluid, reference_state, temperature_unit, pressure_unit)
-    with cycle_tab:
-        render_cycle_tab(reference_state, temperature_unit, pressure_unit)
-    with heat_transfer_tab:
-        render_heat_transfer_tab(reference_state, temperature_unit, pressure_unit)
-    with exercise_tab:
-        render_exercise_tab(reference_state, temperature_unit, pressure_unit)
     render_footer()
 
 

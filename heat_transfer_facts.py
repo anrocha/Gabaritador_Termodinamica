@@ -58,16 +58,24 @@ def canonical_heat_name(item: HeatTransferPlanItem) -> str:
     raw_name = normalize_heat_text(item.nome)
     if raw_name in {"k", "condutividade", "condutividade termica"} or "condutividade" in text:
         return "k"
-    if raw_name in {"h", "coeficiente h"} or "coeficiente convectivo" in text or ("conveccao" in text and " h " in f" {text} "):
+    if raw_name in {"h", "coeficiente h"} or "coeficiente convectivo" in text or "coeficiente de transferencia de calor convectivo" in text or "coeficiente de transferencia por conveccao" in text or ("conveccao" in text and " h " in f" {text} "):
         return "h"
-    if raw_name in {"a", "area", "area a"} or text.startswith("area"):
-        return "A"
-    if raw_name in {"l", "espessura", "thickness", "comprimento"} or "espessura" in text:
+    if raw_name in {"l", "espessura", "thickness", "comprimento"} or "comprimento" in text or "espessura" in text:
         return "L"
     if raw_name in {"p", "perimetro", "perimetro molhado"} or "perimetro" in text:
         return "P"
     if raw_name in {"ac", "a c", "a_c", "area secao", "area da secao"} or "secao transversal" in text:
         return "A_c"
+    if raw_name in {"af", "a f", "a_f", "area aleta", "area da aleta", "superficie da aleta"} or "area da aleta" in text or "superficie da aleta" in text:
+        return "A_f"
+    if raw_name in {"abase", "a base", "a_base", "area base", "area da base", "base area", "area da superficie base", "area superficie base", "superficie base", "base da superficie"}:
+        return "A_base"
+    if "area" in text and "base" in text:
+        return "A_base"
+    if raw_name in {"n", "numero de aletas", "quantidade de aletas", "num aletas"} or "numero de aletas" in text or "quantidade de aletas" in text:
+        return "N"
+    if raw_name in {"a", "area", "area a"} or text.startswith("area"):
+        return "A"
     if raw_name in {"v", "volume"} or "volume" in text:
         return "V"
     if raw_name in {"rho", "densidade"} or "densidade" in text:
@@ -151,11 +159,13 @@ def canonical_heat_name(item: HeatTransferPlanItem) -> str:
 
 def parse_heat_value(item: HeatTransferPlanItem) -> tuple[float, str] | None:
     text = f"{item.valor} {item.unidade}".strip()
-    match = re.search(r"[-+]?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?", text)
-    if not match:
+    numbers = [float(match.replace(",", ".")) for match in re.findall(r"[-+]?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?", text)]
+    if not numbers:
         return None
-    value = float(match.group(0).replace(",", "."))
-    unit = normalize_heat_unit(item.unidade or text[match.end() :])
+    value = numbers[0]
+    if canonical_heat_name(item) in {"A", "A_c", "A_f", "A_base"} and len(numbers) >= 2 and re.search(r"[x×*]", text.lower()):
+        value = numbers[0] * numbers[1]
+    unit = normalize_heat_unit(item.unidade or "")
     return value, unit
 
 
@@ -174,14 +184,18 @@ def convert_heat_value(canonical_name: str, value: float, unit: str) -> float | 
         if unit in {"m", "metro", "metros", ""}:
             return value
         return None
-    if canonical_name in {"A", "A_c"}:
+    if canonical_name in {"A", "A_c", "A_f", "A_base"}:
         if unit in {"mm2", "mm^2"}:
             return value / 1_000_000.0
         if unit in {"cm2", "cm^2"}:
             return value / 10_000.0
-        if unit in {"m2", "m^2", ""}:
+        if unit in {"m2", "m^2", "m", ""}:
             return value
         return None
+    if canonical_name == "N":
+        if unit in {"", "un", "unidade", "unidades", "count"}:
+            return value
+        return value
     if canonical_name == "V":
         if unit in {"cm3", "cm^3"}:
             return value / 1_000_000.0
@@ -230,7 +244,15 @@ def convert_heat_value(canonical_name: str, value: float, unit: str) -> float | 
         if unit in {"pa.s", "pas", "kg/ms", ""}:
             return value
         return None
-    if canonical_name in {"k", "h", "U", "F", "epsilon", "rho", "velocity"}:
+    if canonical_name in {"k", "h", "U", "F", "epsilon", "eta_f", "eta_o", "epsilon_o", "rho", "velocity"}:
+        if unit in {"%", "percent", "porcento"}:
+            return value / 100.0
+        return value
+    if canonical_name in {"q_dot", "q_dot_fin", "q_total", "q_sem_aletas"}:
+        if unit in {"kw", "kwatt", "kilowatt"}:
+            return value * 1000.0
+        if unit in {"w", ""}:
+            return value
         return value
     return value
 

@@ -142,6 +142,22 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         outputs=("h", "T_s", "q_dot"),
         description="Asa ou placa plana aquecida por radiação solar e resfriada por convecção nas duas faces.",
     ),
+    HeatTransferToolSpec(
+        name="aleta_superficie_aletada",
+        label="Superficie aletada em placa",
+        category="aletas",
+        required=("h", "P", "k", "A_c", "L", "A_base", "N", "T_b", "T_inf"),
+        outputs=("m", "A_f", "eta_f", "A_base_exp", "q_dot_fin", "q_total", "q_sem_aletas", "eta_o", "epsilon_o", "ganho_percentual"),
+        description="Placa aletada com N aletas retas, area da base exposta e ganho global de transferencia de calor.",
+    ),
+    HeatTransferToolSpec(
+        name="trocador_tubo_concentrico_vapor",
+        label="Tubo concentric com vapor",
+        category="trocadores",
+        required=("fluid", "D_i", "D_o", "L", "V", "T_in", "T_steam", "k"),
+        outputs=("R_cond", "T_wi", "h_i", "q_dot", "T_out", "R_th", "A_i"),
+        description="Tubo concentric aquecido por vapor quase isotermo, acoplando conducao cilindrica e conveccao interna.",
+    ),
 )
 
 
