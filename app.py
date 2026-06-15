@@ -7,6 +7,7 @@ import streamlit as st
 
 from cycle_rendering import render_cycle_tab
 from exercise_rendering import render_exercise_tab
+from heat_transfer_rendering import render_heat_transfer_tab
 from thermo_core import (
     PROPERTY_DEFINITIONS,
     PRESSURE_UNITS,
@@ -926,8 +927,15 @@ def main() -> None:
         fluids = ("Water",)
 
     fluid, reference_state, temperature_unit, pressure_unit = render_shared_controls(fluids)
-    state_tab, pair_state_tab, quality_tab, cycle_tab, exercise_tab = st.tabs(
-        ["Propriedades T/P", "Estado por par", "Titulo de mistura", "Ciclo de refrigeracao", "Gabaritador"]
+    state_tab, pair_state_tab, quality_tab, cycle_tab, heat_transfer_tab, exercise_tab = st.tabs(
+        [
+            "Propriedades T/P",
+            "Estado por par",
+            "Titulo de mistura",
+            "Ciclo de refrigeracao",
+            "Transferência de Calor",
+            "Gabaritador",
+        ]
     )
     with state_tab:
         render_state_tab(fluid, reference_state, temperature_unit, pressure_unit)
@@ -937,6 +945,8 @@ def main() -> None:
         render_quality_tab(fluid, reference_state, temperature_unit, pressure_unit)
     with cycle_tab:
         render_cycle_tab(reference_state, temperature_unit, pressure_unit)
+    with heat_transfer_tab:
+        render_heat_transfer_tab(reference_state, temperature_unit, pressure_unit)
     with exercise_tab:
         render_exercise_tab(reference_state, temperature_unit, pressure_unit)
     render_footer()

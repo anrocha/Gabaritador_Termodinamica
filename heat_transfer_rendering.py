@@ -43,7 +43,11 @@ from heat_transfer_logger import (
 )
 
 
-def render_heat_transfer_tab() -> None:
+def render_heat_transfer_tab(
+    default_reference_state: str = "Estado de Referência Padrão",
+    default_temperature_unit: str = "K",
+    default_pressure_unit: str = "Pa",
+) -> None:
     st.markdown("### Gabaritador Transferência de Calor")
     st.caption(
         "MVP isolado para condução, convecção, radiação, aletas e transientes concentrados. A disciplina é escolhida pela aba; "
