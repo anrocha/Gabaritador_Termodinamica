@@ -16,16 +16,6 @@ Não foi encontrada uma skill pronta confiável de `heat transfer` no catálogo 
 
 Por isso, a abordagem recomendada é criar uma skill local do projeto: `.agents/skills/especialista-transferencia-calor/SKILL.md`.
 
-## Decisão de Integração no App
-
-O Gabaritador de Transferência de Calor deve ficar isolado em uma aba própria chamada `Gabaritador Transferência de Calor`.
-
-A aba atual do assistente de exercícios deve ser renomeada para `Gabaritador Termodinâmica`.
-
-Essa separação é intencional: o usuário escolhe a matéria antes de enviar o enunciado, reduzindo complexidade, evitando roteamento autônomo entre disciplinas diferentes e mantendo prompts, ferramentas, normalizadores, executores, renderizadores e logs separados por domínio.
-
-No MVP, não haverá uma aba única tentando decidir automaticamente entre Termodinâmica e Transferência de Calor.
-
 ## Objetivos
 
 - Resolver exercícios típicos de Transferência de Calor de forma incremental.

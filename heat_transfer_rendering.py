@@ -24,6 +24,12 @@ from heat_transfer_core import (
     calculate_straight_fin_adiabatic_tip,
     calculate_series_resistance_network,
 )
+from heat_transfer_quickwin import (
+    calculate_external_flat_plate_convection,
+    calculate_internal_tube_convection,
+    calculate_plane_transient_bidirectional,
+    calculate_solar_plate_balance,
+)
 from heat_transfer_diagrams import build_heat_transfer_figure
 from heat_transfer_executor import execute_heat_transfer_plan
 from heat_transfer_executor import main_heat_transfer_tool
@@ -79,13 +85,17 @@ def _render_input_panel() -> HeatTransferResult | None:
             "Condução radial em cilindro",
             "Condução radial em esfera",
             "Convecção",
+            "Convecção externa em placa plana",
+            "Convecção interna em tubo iterativa",
             "Radiação superfície-vizinhança",
             "Rede de resistências - série",
             "Rede de resistências - paralelo",
             "Aleta reta - ponta adiabática",
             "Capacitância concentrada",
+            "Condução transiente em placa",
             "Trocador LMTD",
             "Trocador Efetividade-NTU",
+            "Asa/placa com radiação solar",
             "Convecção forçada - Dittus-Boelter",
         ),
         key="ht_tool",
@@ -100,6 +110,10 @@ def _render_input_panel() -> HeatTransferResult | None:
             return _sphere_inputs()
         if tool == "Convecção":
             return _convection_inputs()
+        if tool == "Convecção externa em placa plana":
+            return _external_plate_inputs()
+        if tool == "Convecção interna em tubo iterativa":
+            return _internal_tube_inputs()
         if tool == "Radiação superfície-vizinhança":
             return _radiation_inputs()
         if tool == "Rede de resistências - série":
@@ -110,10 +124,14 @@ def _render_input_panel() -> HeatTransferResult | None:
             return _fin_inputs()
         if tool == "Capacitância concentrada":
             return _lumped_inputs()
+        if tool == "Condução transiente em placa":
+            return _transient_plate_inputs()
         if tool == "Trocador LMTD":
             return _lmtd_inputs()
         if tool == "Trocador Efetividade-NTU":
             return _ntu_inputs()
+        if tool == "Asa/placa com radiação solar":
+            return _solar_plate_inputs()
         return _dittus_boelter_inputs()
     except HeatTransferCalculationError as exc:
         st.error(f"Não foi possível calcular: {exc}")
@@ -161,6 +179,70 @@ def _convection_inputs() -> HeatTransferResult | None:
     fluid_temperature = st.number_input("Temperatura do fluido T∞ [°C]", value=20.0, step=5.0, format="%.6f", key="ht_conv_tinf")
     if st.button("Calcular convecção", type="primary", use_container_width=True, key="ht_conv_calc"):
         return calculate_convection(coefficient, area, surface_temperature, fluid_temperature)
+    return None
+
+
+def _external_plate_inputs() -> HeatTransferResult | None:
+    fluid = st.selectbox("Fluido", ("Air", "Water"), key="ht_plate_fluid")
+    velocity = st.number_input("Velocidade V [m/s]", value=5.0, min_value=0.0, step=0.5, format="%.6f", key="ht_plate_v")
+    length = st.number_input("Comprimento L [m]", value=1.0, min_value=0.0, step=0.1, format="%.6f", key="ht_plate_l")
+    width = st.number_input("Largura W [m]", value=1.0, min_value=0.0, step=0.1, format="%.6f", key="ht_plate_w")
+    surface_temperature = st.number_input("Temperatura da superfície Ts [°C]", value=80.0, step=5.0, format="%.6f", key="ht_plate_ts")
+    fluid_temperature = st.number_input("Temperatura do fluido T∞ [°C]", value=25.0, step=5.0, format="%.6f", key="ht_plate_tinf")
+    pressure = st.number_input("Pressão [Pa]", value=101325.0, min_value=0.0, step=1000.0, format="%.6f", key="ht_plate_p")
+    if st.button("Calcular placa plana", type="primary", use_container_width=True, key="ht_plate_calc"):
+        return calculate_external_flat_plate_convection(fluid, velocity, length, width, surface_temperature, fluid_temperature, pressure)
+    return None
+
+
+def _internal_tube_inputs() -> HeatTransferResult | None:
+    fluid = st.selectbox("Fluido", ("Water", "Air"), key="ht_tube_fluid")
+    diameter = st.number_input("Diâmetro D [m]", value=0.025, min_value=0.0, step=0.005, format="%.6f", key="ht_tube_d")
+    length = st.number_input("Comprimento L [m]", value=2.0, min_value=0.0, step=0.1, format="%.6f", key="ht_tube_l")
+    velocity = st.number_input("Velocidade V [m/s]", value=1.5, min_value=0.0, step=0.1, format="%.6f", key="ht_tube_v")
+    inlet_temperature = st.number_input("Temperatura de entrada Tin [°C]", value=20.0, step=5.0, format="%.6f", key="ht_tube_tin")
+    wall_temperature = st.number_input("Temperatura da parede Tw [°C]", value=60.0, step=5.0, format="%.6f", key="ht_tube_tw")
+    pressure = st.number_input("Pressão [Pa]", value=101325.0, min_value=0.0, step=1000.0, format="%.6f", key="ht_tube_p")
+    if st.button("Calcular tubo interno", type="primary", use_container_width=True, key="ht_tube_calc"):
+        return calculate_internal_tube_convection(fluid, diameter, length, velocity, inlet_temperature, wall_temperature, pressure)
+    return None
+
+
+def _transient_plate_inputs() -> HeatTransferResult | None:
+    conductivity = st.number_input("Condutividade k [W/(m.K)]", value=45.0, min_value=0.0, step=1.0, format="%.6f", key="ht_transient_k")
+    density = st.number_input("Densidade rho [kg/m³]", value=7800.0, min_value=0.0, step=100.0, format="%.6f", key="ht_transient_rho")
+    specific_heat = st.number_input("Calor específico cp [J/(kg.K)]", value=500.0, min_value=0.0, step=10.0, format="%.6f", key="ht_transient_cp")
+    thickness = st.number_input("Espessura L [m]", value=0.02, min_value=0.0, step=0.001, format="%.6f", key="ht_transient_l")
+    area = st.number_input("Área A [m²]", value=0.5, min_value=0.0, step=0.05, format="%.6f", key="ht_transient_a")
+    coefficient = st.number_input("Coeficiente h [W/(m².K)]", value=25.0, min_value=0.0, step=1.0, format="%.6f", key="ht_transient_h")
+    initial_temperature = st.number_input("Temperatura inicial Ti [°C]", value=120.0, step=5.0, format="%.6f", key="ht_transient_ti")
+    fluid_temperature = st.number_input("Temperatura do fluido T∞ [°C]", value=25.0, step=5.0, format="%.6f", key="ht_transient_tinf")
+    time = st.number_input("Tempo t [s]", value=120.0, min_value=0.0, step=10.0, format="%.6f", key="ht_transient_t")
+    if st.button("Calcular transiente", type="primary", use_container_width=True, key="ht_transient_calc"):
+        return calculate_plane_transient_bidirectional(
+            conductivity,
+            density,
+            specific_heat,
+            thickness,
+            area,
+            coefficient,
+            initial_temperature,
+            fluid_temperature,
+            time,
+        )
+    return None
+
+
+def _solar_plate_inputs() -> HeatTransferResult | None:
+    fluid = st.selectbox("Fluido", ("Air", "Water"), key="ht_solar_fluid")
+    velocity = st.number_input("Velocidade V [m/s]", value=6.0, min_value=0.0, step=0.5, format="%.6f", key="ht_solar_v")
+    length = st.number_input("Comprimento L [m]", value=1.0, min_value=0.0, step=0.1, format="%.6f", key="ht_solar_l")
+    width = st.number_input("Largura W [m]", value=1.0, min_value=0.0, step=0.1, format="%.6f", key="ht_solar_w")
+    solar_heat_flux = st.number_input("Fluxo solar q'' [W/m²]", value=600.0, min_value=0.0, step=25.0, format="%.6f", key="ht_solar_q")
+    fluid_temperature = st.number_input("Temperatura do ar T∞ [°C]", value=30.0, step=5.0, format="%.6f", key="ht_solar_tinf")
+    pressure = st.number_input("Pressão [Pa]", value=101325.0, min_value=0.0, step=1000.0, format="%.6f", key="ht_solar_p")
+    if st.button("Calcular asa/placa solar", type="primary", use_container_width=True, key="ht_solar_calc"):
+        return calculate_solar_plate_balance(fluid, velocity, length, width, solar_heat_flux, fluid_temperature, pressure)
     return None
 
 
@@ -309,6 +391,9 @@ def _render_empty_state() -> None:
     st.latex(r"R_{th}:\ \mathrm{resistencia\ termica\ [K/W]}")
     st.latex(r"T_\infty:\ \mathrm{temperatura\ do\ fluido\ longe\ da\ superficie}")
     st.latex(r"Bi:\ \mathrm{numero\ de\ Biot\ para\ validar\ capacitancia\ concentrada}")
+    st.latex(r"Re_L,\ Nu_L:\ \mathrm{regime\ e\ correlacao\ em\ placa\ plana}")
+    st.latex(r"Fo:\ \mathrm{numero\ de\ Fourier\ no\ transiente}")
+    st.latex(r"\Delta p:\ \mathrm{perda\ de\ pressao\ em\ tubo}")
 
 
 def _render_result(result: HeatTransferResult, plan: HeatTransferPlan | None = None) -> None:
@@ -615,6 +700,64 @@ def _apply_plan_to_manual_widgets(plan: HeatTransferPlan) -> bool:
             }
         )
         return True
+    if tool == "conveccao_placa_plana_externa":
+        _set_widget_values(
+            {
+                "ht_tool": "Convecção externa em placa plana",
+                "ht_plate_fluid": _fluid_for_widgets(plan, default="Air"),
+                "ht_plate_v": _fact(facts, "velocity"),
+                "ht_plate_l": _fact(facts, "L"),
+                "ht_plate_w": _fact(facts, "W"),
+                "ht_plate_ts": _fact(facts, "T_s", "T_1"),
+                "ht_plate_tinf": _fact(facts, "T_inf", "T_2"),
+                "ht_plate_p": _fact(facts, "pressure"),
+            }
+        )
+        return True
+    if tool == "conveccao_interna_tubo_iterativa":
+        _set_widget_values(
+            {
+                "ht_tool": "Convecção interna em tubo iterativa",
+                "ht_tube_fluid": _fluid_for_widgets(plan, default="Water"),
+                "ht_tube_d": _fact(facts, "D"),
+                "ht_tube_l": _fact(facts, "L"),
+                "ht_tube_v": _fact(facts, "velocity"),
+                "ht_tube_tin": _fact(facts, "T_in", "T_1"),
+                "ht_tube_tw": _fact(facts, "T_w", "T_s", "T_2"),
+                "ht_tube_p": _fact(facts, "pressure"),
+            }
+        )
+        return True
+    if tool == "conducao_transiente_placa":
+        _set_widget_values(
+            {
+                "ht_tool": "Condução transiente em placa",
+                "ht_transient_k": _fact(facts, "k"),
+                "ht_transient_rho": _fact(facts, "rho"),
+                "ht_transient_cp": _fact(facts, "cp", "c_p"),
+                "ht_transient_l": _fact(facts, "L"),
+                "ht_transient_a": _fact(facts, "A"),
+                "ht_transient_h": _fact(facts, "h"),
+                "ht_transient_ti": _fact(facts, "T_i", "T_1"),
+                "ht_transient_tinf": _fact(facts, "T_inf", "T_2"),
+                "ht_transient_t": _fact(facts, "t"),
+            }
+        )
+        return True
+    if tool == "asa_plana_radiacao_solar":
+        _set_widget_values(
+            {
+                "ht_tool": "Asa/placa com radiação solar",
+                "ht_solar_fluid": _fluid_for_widgets(plan, default="Air"),
+                "ht_solar_v": _fact(facts, "velocity"),
+                "ht_solar_l": _fact(facts, "L"),
+                "ht_solar_w": _fact(facts, "W"),
+                "ht_solar_q": _fact(facts, "q_solar"),
+                "ht_solar_tinf": _fact(facts, "T_inf", "T_2"),
+                "ht_solar_p": _fact(facts, "pressure"),
+            }
+        )
+        return True
     return False
 
 
@@ -634,6 +777,15 @@ def _heating_mode_for_widgets(plan: HeatTransferPlan) -> str | None:
     if "aquec" in text or "heat" in text:
         return "aquecimento"
     return None
+
+
+def _fluid_for_widgets(plan: HeatTransferPlan, default: str = "Air") -> str:
+    text = " ".join((plan.tipo_problema, plan.categoria, " ".join(plan.objetivos), plan.entrada_oficial, plan.diagnostico_entrada)).lower()
+    if "water" in text or "agua" in text:
+        return "Water"
+    if "air" in text or "ar" in text:
+        return "Air"
+    return default
 
 
 def _resistance_text_from_plan(plan: HeatTransferPlan) -> str | None:
@@ -797,19 +949,23 @@ def _symbols_for_heat_question(question, result: HeatTransferResult) -> set[str]
         (("fluxo", "q''", "q fluxo"), ("q_flux",)),
         (("taxa de calor", "calor", "q dot", "qdot", "potencia termica"), ("q_dot", "q_dot_rad", "q_dot_fin")),
         (("resistencia", "r eq", "req"), ("R_eq", "R_cond", "R_cil", "R_esf", "R_conv")),
-        (("temperatura", "saida", "entrada", "t out", "t in"), ("T_t", "T_h_out", "T_c_out", "T_h_in", "T_c_in")),
+        (("temperatura", "saida", "entrada", "t out", "t in"), ("T_t", "T_h_out", "T_c_out", "T_h_in", "T_c_in", "T_center", "T_surface", "T_out", "T_w", "T_s")),
         (("lmtd", "dtlm", "media logaritmica", "delta t lm"), ("Delta_T_lm", "Delta_T_1", "Delta_T_2")),
         (("ntu",), ("NTU",)),
         (("efetividade", "epsilon"), ("epsilon_hx", "epsilon_f")),
         (("eficiencia", "eta"), ("eta_f",)),
-        (("nusselt", "nu"), ("Nu",)),
-        (("reynolds", "re"), ("Re",)),
+        (("nusselt", "nu"), ("Nu", "Nu_L")),
+        (("reynolds", "re"), ("Re", "Re_L")),
         (("prandtl", "pr"), ("Pr",)),
         (("biot", "bi"), ("Bi",)),
+        (("fourier", "fo"), ("Fo",)),
         (("constante de tempo", "tau"), ("tau",)),
         (("energia",), ("Q",)),
+        (("perda de carga", "queda de pressao", "delta p", "pressao"), ("delta_p",)),
         (("coeficiente convectivo", "coeficiente de conveccao", " h "), ("h",)),
         (("aleta", "parametro"), ("m", "A_f", "eta_f", "epsilon_f", "q_dot_fin")),
+        (("placa plana", "placa", "asa", "solar"), ("q_solar",)),
+        (("regime", "laminar", "turbul", "misto"), ("Re_L", "Re", "Nu_L", "Nu")),
     )
     padded_text = f" {text} "
     for keywords, candidate_symbols in rules:
@@ -860,15 +1016,23 @@ def _symbol_keywords(symbol: str) -> tuple[str, ...]:
         "Delta_T_1": ("delta t 1",),
         "Delta_T_2": ("delta t 2",),
         "T_t": ("t(t)", "temperatura"),
+        "T_center": ("centro", "centro da placa"),
+        "T_surface": ("superficie",),
+        "T_out": ("saida", "out"),
         "T_h_out": ("t h out", "h out"),
         "T_c_out": ("t c out", "c out"),
         "epsilon_hx": ("varepsilon", "epsilon", "efetividade"),
         "epsilon_f": ("varepsilon f", "epsilon", "efetividade"),
         "eta_f": ("eta f", "eficiencia"),
         "Nu": ("nu", "nusselt"),
+        "Nu_L": ("nu l", "nusselt"),
         "Re": ("re", "reynolds"),
+        "Re_L": ("re l", "reynolds"),
         "Pr": ("pr", "prandtl"),
         "Bi": ("bi", "biot"),
+        "Fo": ("fo", "fourier"),
+        "delta_p": ("delta p", "perda de carga", "queda de pressao"),
+        "q_solar": ("solar", "radiacao"),
     }
     return aliases.get(symbol, (normalized_symbol,))
 

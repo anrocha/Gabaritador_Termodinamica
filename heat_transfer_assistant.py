@@ -271,5 +271,8 @@ Regras:
 - Grandezas calculaveis pela ferramenta, como q_dot, q_flux, R_th e Bi, nao entram em dados_faltantes.
 - Se imagem e texto divergirem, registre o conflito em diagnostico_entrada e priorize texto explicito do usuario.
 - Use nomes canonicos: T_1, T_2, T_s, T_inf, T_sur, L, A, r_i, r_o, D, k, h, epsilon, q_dot, q_flux, R_th, Bi, Fo.
+- Para placa plana externa use conveccao_placa_plana_externa; para tubo interno use conveccao_interna_tubo_iterativa; para placa transiente use conducao_transiente_placa; para asa/placa com sol use asa_plana_radiacao_solar.
+- Classifique explicitamente geometria, tipo de transferencia, regime e correlacao antes de listar faltantes.
+- Se o enunciado citar placa plana, tubo, transiente, Biot, Fourier, Reynolds, Nusselt, conveccao externa, conveccao interna ou radiacao solar, escolha a ferramenta especifica correspondente.
 - Mantenha todas as respostas em portugues.
 """.strip()

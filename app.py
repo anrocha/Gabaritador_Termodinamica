@@ -7,7 +7,6 @@ import streamlit as st
 
 from cycle_rendering import render_cycle_tab
 from exercise_rendering import render_exercise_tab
-from heat_transfer_rendering import render_heat_transfer_tab
 from thermo_core import (
     PROPERTY_DEFINITIONS,
     PRESSURE_UNITS,
@@ -29,7 +28,7 @@ from thermo_core import (
 
 
 st.set_page_config(
-    page_title="Gabaritadores de Engenharia Termica",
+    page_title="Gabaritador de Termodinamica",
     page_icon="T",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -300,21 +299,6 @@ st.markdown(
     }
     .result-card strong {
         color: #003f7a;
-    }
-    .limited-plot {
-        width: min(100%, 700px);
-        max-height: 450px;
-        margin: 0.35rem auto 1rem auto;
-        overflow: hidden;
-    }
-    .limited-plot [data-testid="stImage"],
-    .limited-plot img,
-    .limited-plot svg,
-    .limited-plot canvas {
-        max-width: 700px !important;
-        max-height: 450px !important;
-        width: 100% !important;
-        height: auto !important;
     }
     .result-value {
         color: var(--unisinos-ink);
@@ -661,8 +645,8 @@ def render_footer() -> None:
 
 
 def render_header() -> None:
-    st.title("Gabaritadores de Engenharia Termica")
-    st.caption("Termodinamica e Transferencia de Calor com calculos determinísticos, rastreabilidade e explicacao didatica.")
+    st.title("Gabaritador de Termodinamica")
+    st.caption("Propriedades termodinamicas com CoolProp, referencias Unisinos e calculo de titulo.")
 
 
 def render_state_tab(fluid: str, reference_state: str, temperature_unit: str, pressure_unit: str) -> None:
@@ -942,15 +926,8 @@ def main() -> None:
         fluids = ("Water",)
 
     fluid, reference_state, temperature_unit, pressure_unit = render_shared_controls(fluids)
-    state_tab, pair_state_tab, quality_tab, cycle_tab, exercise_tab, heat_transfer_tab = st.tabs(
-        [
-            "Propriedades T/P",
-            "Estado por par",
-            "Titulo de mistura",
-            "Ciclo de refrigeracao",
-            "Gabaritador Termodinâmica",
-            "Gabaritador Transferência de Calor",
-        ]
+    state_tab, pair_state_tab, quality_tab, cycle_tab, exercise_tab = st.tabs(
+        ["Propriedades T/P", "Estado por par", "Titulo de mistura", "Ciclo de refrigeracao", "Gabaritador"]
     )
     with state_tab:
         render_state_tab(fluid, reference_state, temperature_unit, pressure_unit)
@@ -962,8 +939,6 @@ def main() -> None:
         render_cycle_tab(reference_state, temperature_unit, pressure_unit)
     with exercise_tab:
         render_exercise_tab(reference_state, temperature_unit, pressure_unit)
-    with heat_transfer_tab:
-        render_heat_transfer_tab()
     render_footer()
 
 

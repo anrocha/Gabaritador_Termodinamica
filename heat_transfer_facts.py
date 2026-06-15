@@ -84,6 +84,8 @@ def canonical_heat_name(item: HeatTransferPlanItem) -> str:
         return "U"
     if raw_name in {"ua", "u a", "condutancia global"} or "condutancia global" in text or "produto ua" in text:
         return "UA"
+    if raw_name in {"w", "largura", "width"} or "largura" in text:
+        return "W"
     if raw_name in {"f", "fator correcao", "fator de correcao"} or "fator de correcao" in text:
         return "F"
     if raw_name in {"ch", "c h", "c_h", "capacidade quente"} or ("capacidade" in text and "quente" in text):
@@ -132,10 +134,16 @@ def canonical_heat_name(item: HeatTransferPlanItem) -> str:
         return "T_o"
     if raw_name in {"ts", "t s", "t_s", "temperatura superficie"} or "superficie" in text:
         return "T_s"
+    if raw_name in {"t w", "t_w", "temperatura parede", "temperatura da parede"} or "parede" in text:
+        return "T_w"
     if raw_name in {"tinf", "t inf", "t_inf", "temperatura ambiente", "temperatura fluido"} or "ambiente" in text or "fluido" in text:
         return "T_inf"
     if raw_name in {"tsur", "t sur", "t_sur", "temperatura vizinhanca"} or "vizinhanca" in text:
         return "T_sur"
+    if raw_name in {"pressao", "pressure", "p"} or "pressao" in text:
+        return "pressure"
+    if raw_name in {"qsolar", "q solar", "q_solar", "fluxo solar", "radiacao solar"} or "solar" in text:
+        return "q_solar"
     if raw_name in {"t", "tempo"} or "tempo" in text:
         return "t"
     return ""
@@ -199,6 +207,22 @@ def convert_heat_value(canonical_name: str, value: float, unit: str) -> float | 
             return value * 1000.0
         if unit in {"w/k", "wk", ""}:
             return value
+        return None
+    if canonical_name == "pressure":
+        if unit in {"pa", ""}:
+            return value
+        if unit in {"kpa"}:
+            return value * 1000.0
+        if unit in {"mpa"}:
+            return value * 1_000_000.0
+        if unit in {"bar"}:
+            return value * 100_000.0
+        return None
+    if canonical_name == "q_solar":
+        if unit in {"w/m2", "w/m^2", ""}:
+            return value
+        if unit in {"kw/m2", "kw/m^2"}:
+            return value * 1000.0
         return None
     if canonical_name == "mu":
         if unit in {"mpa.s", "mpas"}:

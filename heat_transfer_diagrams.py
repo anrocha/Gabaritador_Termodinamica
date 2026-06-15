@@ -33,6 +33,14 @@ def build_heat_transfer_figure(result: HeatTransferResult):
         return _ntu_heat_exchanger_figure(result)
     if result.tool == "conveccao_forcada_dittus_boelter":
         return _dimensionless_numbers_figure(result)
+    if result.tool == "conveccao_placa_plana_externa":
+        return _flat_plate_convection_figure(result)
+    if result.tool == "conveccao_interna_tubo_iterativa":
+        return _tube_internal_convection_figure(result)
+    if result.tool == "conducao_transiente_placa":
+        return _transient_plate_figure(result)
+    if result.tool == "asa_plana_radiacao_solar":
+        return _solar_plate_figure(result)
     return None
 
 
@@ -302,6 +310,103 @@ def _dimensionless_numbers_figure(result: HeatTransferResult):
     for bar, value in zip(bars, values):
         ax.text(bar.get_x() + bar.get_width() / 2, value, f"{value:.3g}", ha="center", va="bottom", fontsize=9)
     ax.text(0.5, -0.22, f"h={coefficient:.3g} W/(m².K)", transform=ax.transAxes, ha="center", fontsize=10, weight="bold")
+    _style_figure(fig)
+    return fig
+
+
+def _flat_plate_convection_figure(result: HeatTransferResult):
+    values = _data_dict(result)
+    length = values.get("L", 1.0)
+    width = values.get("W", 1.0)
+    t_surface = values.get("T_s", 0.0)
+    t_inf = values.get("T_inf", 0.0)
+    reynolds = _result_value(result, "Re_L")
+    h = _result_value(result, "h")
+    x_cr = next((item for item in result.validations if "x_cr" in item or "x_cr =" in item), "")
+
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.axis("off")
+    ax.add_patch(plt.Rectangle((0.12, 0.38), 0.58, 0.18, facecolor="#d8e1ea", edgecolor="#0057a6", linewidth=2))
+    ax.annotate("", xy=(0.82, 0.67), xytext=(0.08, 0.67), arrowprops={"arrowstyle": "->", "color": "#f58220", "lw": 2.5})
+    ax.text(0.41, 0.64, "placa plana", ha="center", fontsize=12, weight="bold")
+    ax.text(0.12, 0.25, f"L={length:.3g} m | W={width:.3g} m", ha="left", fontsize=10)
+    ax.text(0.12, 0.14, f"Re={reynolds:.3g} | h={h:.3g} W/(m².K)", ha="left", fontsize=10)
+    ax.text(0.82, 0.56, f"T∞={t_inf:.3g} °C", ha="right", fontsize=10)
+    ax.text(0.82, 0.46, f"Ts={t_surface:.3g} °C", ha="right", fontsize=10)
+    if x_cr:
+        ax.text(0.5, 0.08, x_cr, ha="center", fontsize=9)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    _style_figure(fig)
+    return fig
+
+
+def _tube_internal_convection_figure(result: HeatTransferResult):
+    values = _data_dict(result)
+    diameter = values.get("D", 1.0)
+    length = values.get("L", 1.0)
+    t_in = values.get("T_in", 0.0)
+    t_out = values.get("T_out", 0.0)
+    t_w = values.get("T_w", 0.0)
+    delta_p = _result_value(result, "delta_p")
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.axis("off")
+    ax.add_patch(plt.Rectangle((0.12, 0.36), 0.62, 0.24, facecolor="#eef4fb", edgecolor="#0057a6", linewidth=2))
+    ax.add_patch(plt.Rectangle((0.18, 0.42), 0.5, 0.12, facecolor="#ffffff", edgecolor="#64748b", linewidth=1.5))
+    ax.annotate("", xy=(0.78, 0.78), xytext=(0.08, 0.78), arrowprops={"arrowstyle": "->", "color": "#f58220", "lw": 2.5})
+    ax.text(0.43, 0.69, "tubo interno", ha="center", fontsize=12, weight="bold")
+    ax.text(0.13, 0.24, f"D={diameter:.3g} m | L={length:.3g} m", ha="left", fontsize=10)
+    ax.text(0.13, 0.14, f"Tin={t_in:.3g} °C | Tout={t_out:.3g} °C | Tw={t_w:.3g} °C", ha="left", fontsize=10)
+    ax.text(0.78, 0.12, f"Δp={delta_p:.3g} Pa", ha="right", fontsize=10)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    _style_figure(fig)
+    return fig
+
+
+def _transient_plate_figure(result: HeatTransferResult):
+    values = _data_dict(result)
+    t_i = values.get("T_i", values.get("T_1", 0.0))
+    t_inf = values.get("T_inf", 0.0)
+    t_center = _result_value(result, "T_center")
+    t_surface = _result_value(result, "T_surface")
+    bi = _result_value(result, "Bi")
+    fo = _result_value(result, "Fo")
+
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    x_values = [0.0, 0.5, 1.0]
+    temperature_profile = [t_surface, t_center, t_surface]
+    ax.plot(x_values, temperature_profile, color="#0057a6", linewidth=3)
+    ax.scatter(x_values, temperature_profile, color="#f58220", zorder=4)
+    ax.set_title("Perfil de temperatura na placa")
+    ax.set_xlabel("x/Lc [-]")
+    ax.set_ylabel("T [°C]")
+    ax.grid(True, alpha=0.25)
+    ax.text(0.02, 0.95, f"Bi={bi:.3g} | Fo={fo:.3g}", transform=ax.transAxes, fontsize=10, weight="bold")
+    ax.text(0.02, 0.88, f"Ti={t_i:.3g} °C | Tinf={t_inf:.3g} °C", transform=ax.transAxes, fontsize=9)
+    ax.text(0.5, 0.08, f"Tcenter={t_center:.3g} °C | Tsurface={t_surface:.3g} °C", transform=ax.transAxes, ha="center", fontsize=9)
+    _style_figure(fig)
+    return fig
+
+
+def _solar_plate_figure(result: HeatTransferResult):
+    values = _data_dict(result)
+    t_inf = values.get("T_inf", 0.0)
+    t_s = _result_value(result, "T_s")
+    h = _result_value(result, "h")
+    q_dot = _result_value(result, "q_dot")
+
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.axis("off")
+    ax.add_patch(plt.Rectangle((0.14, 0.34), 0.58, 0.22, facecolor="#d8e1ea", edgecolor="#0057a6", linewidth=2))
+    ax.annotate("", xy=(0.45, 0.82), xytext=(0.45, 0.58), arrowprops={"arrowstyle": "->", "color": "#f59e0b", "lw": 2.5})
+    ax.annotate("", xy=(0.84, 0.45), xytext=(0.72, 0.45), arrowprops={"arrowstyle": "->", "color": "#0057a6", "lw": 2.5})
+    ax.annotate("", xy=(0.84, 0.55), xytext=(0.72, 0.55), arrowprops={"arrowstyle": "->", "color": "#0057a6", "lw": 2.5})
+    ax.text(0.45, 0.86, "radiação solar", ha="center", fontsize=11, weight="bold")
+    ax.text(0.45, 0.22, f"Ts={t_s:.3g} °C | Tinf={t_inf:.3g} °C", ha="center", fontsize=10)
+    ax.text(0.45, 0.12, f"h={h:.3g} W/(m².K) | q={q_dot:.3g} W", ha="center", fontsize=10)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
     _style_figure(fig)
     return fig
 

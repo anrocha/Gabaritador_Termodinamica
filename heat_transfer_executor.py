@@ -18,6 +18,12 @@ from heat_transfer_core import (
     calculate_straight_fin_adiabatic_tip,
     calculate_series_resistance_network,
 )
+from heat_transfer_quickwin import (
+    calculate_external_flat_plate_convection,
+    calculate_internal_tube_convection,
+    calculate_plane_transient_bidirectional,
+    calculate_solar_plate_balance,
+)
 from heat_transfer_facts import CanonicalHeatFact, canonical_heat_facts, normalize_heat_text
 
 
@@ -127,6 +133,48 @@ def execute_heat_transfer_plan(plan: HeatTransferPlan) -> HeatTransferResult:
             _required(facts, "k"),
             _heating_mode_from_plan(plan),
         )
+    if tool == "conveccao_placa_plana_externa":
+        return calculate_external_flat_plate_convection(
+            _fluid_from_plan(plan, default="Air"),
+            _required(facts, "V"),
+            _required(facts, "L"),
+            _required(facts, "W"),
+            _required_any(facts, ("T_s", "T_1")),
+            _required_any(facts, ("T_inf", "T_2")),
+            _optional(facts, "pressure", 101325.0),
+        )
+    if tool == "conveccao_interna_tubo_iterativa":
+        return calculate_internal_tube_convection(
+            _fluid_from_plan(plan, default="Water"),
+            _required(facts, "D"),
+            _required(facts, "L"),
+            _required(facts, "V"),
+            _required_any(facts, ("T_in", "T_1")),
+            _required_any(facts, ("T_w", "T_s", "T_2")),
+            _optional(facts, "pressure", 101325.0),
+        )
+    if tool == "conducao_transiente_placa":
+        return calculate_plane_transient_bidirectional(
+            _required(facts, "k"),
+            _required(facts, "rho"),
+            _required(facts, "cp"),
+            _required(facts, "L"),
+            _required(facts, "A"),
+            _required(facts, "h"),
+            _required_any(facts, ("T_i", "T_1")),
+            _required(facts, "T_inf"),
+            _required(facts, "t"),
+        )
+    if tool == "asa_plana_radiacao_solar":
+        return calculate_solar_plate_balance(
+            _fluid_from_plan(plan, default="Air"),
+            _required(facts, "V"),
+            _required(facts, "L"),
+            _required(facts, "W"),
+            _required(facts, "q_solar"),
+            _required(facts, "T_inf"),
+            _optional(facts, "pressure", 101325.0),
+        )
     raise HeatTransferCalculationError(
         "Ainda não há executor determinístico para a ferramenta planejada. "
         "Use uma ferramenta manual da Fase 1 ou ajuste o enunciado para condução, convecção ou radiação simples."
@@ -157,6 +205,14 @@ def main_heat_transfer_tool(plan: HeatTransferPlan) -> str:
         return "trocador_ntu"
     if "lmtd" in joined or "dtlm" in joined or "media logaritmica" in joined or "diferenca media logaritmica" in joined:
         return "trocador_lmtd"
+    if "solar" in joined or "asa" in joined:
+        return "asa_plana_radiacao_solar"
+    if "placa plana" in joined or ("placa" in joined and "extern" in joined) or ("ar" in joined and "superficie plana" in joined):
+        return "conveccao_placa_plana_externa"
+    if "tubo" in joined and ("entrada" in joined or "saida" in joined or "pressao" in joined or "water" in joined or "agua" in joined):
+        return "conveccao_interna_tubo_iterativa"
+    if "transiente" in joined or "capacitancia" in joined or "biot" in joined or "fo" in joined:
+        return "conducao_transiente_placa"
     if "dittus" in joined or "boelter" in joined or "nusselt" in joined or "reynolds" in joined or "prandtl" in joined:
         return "conveccao_forcada_dittus_boelter"
     if "convecc" in joined:
@@ -183,6 +239,26 @@ def _required_any(facts: dict[str, CanonicalHeatFact], names: tuple[str, ...]) -
 
 def _optional(facts: dict[str, CanonicalHeatFact], name: str, default: float) -> float:
     return facts[name].value if name in facts else default
+
+
+def _fluid_from_plan(plan: HeatTransferPlan, default: str = "Air") -> str:
+    text = normalize_heat_text(
+        " ".join(
+            (
+                plan.tipo_problema,
+                plan.categoria,
+                " ".join(plan.objetivos),
+                " ".join(plan.ferramentas_necessarias),
+                plan.entrada_oficial,
+                plan.diagnostico_entrada,
+            )
+        )
+    )
+    if "water" in text or "agua" in text:
+        return "Water"
+    if "air" in text or "ar" in text:
+        return "Air"
+    return default
 
 
 def _flow_type_from_plan(plan: HeatTransferPlan) -> str:

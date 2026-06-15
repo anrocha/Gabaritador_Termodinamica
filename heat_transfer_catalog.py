@@ -110,6 +110,38 @@ HEAT_TRANSFER_TOOLS: tuple[HeatTransferToolSpec, ...] = (
         outputs=("Re", "Pr", "Nu", "h"),
         description="Correlação Dittus-Boelter para escoamento interno turbulento em tubo liso.",
     ),
+    HeatTransferToolSpec(
+        name="conveccao_placa_plana_externa",
+        label="Convecção externa em placa plana",
+        category="convecção",
+        required=("fluid", "V", "L", "W", "T_s", "T_inf"),
+        outputs=("Re_L", "Pr", "Nu_L", "h", "q_dot"),
+        description="Convecção externa em placa plana com seleção de regime laminar, turbulento ou misto.",
+    ),
+    HeatTransferToolSpec(
+        name="conveccao_interna_tubo_iterativa",
+        label="Convecção interna em tubo iterativa",
+        category="convecção",
+        required=("fluid", "D", "L", "V", "T_in", "T_w"),
+        outputs=("mdot", "Re", "Pr", "Nu", "h", "T_out", "q_dot", "delta_p"),
+        description="Convecção interna em tubo com propriedades iteradas na temperatura média e queda de pressão estimada.",
+    ),
+    HeatTransferToolSpec(
+        name="conducao_transiente_placa",
+        label="Condução transiente em placa",
+        category="transiente",
+        required=("k", "rho", "cp", "L", "A", "h", "T_i", "T_inf", "t"),
+        outputs=("L_c", "Bi", "Fo", "T_center", "T_surface", "Q"),
+        description="Placa plana resfriada dos dois lados com critério de Biot e fallback para solução distribuída.",
+    ),
+    HeatTransferToolSpec(
+        name="asa_plana_radiacao_solar",
+        label="Asa/placa plana com radiação solar",
+        category="convecção externa",
+        required=("fluid", "V", "L", "W", "q_solar", "T_inf"),
+        outputs=("h", "T_s", "q_dot"),
+        description="Asa ou placa plana aquecida por radiação solar e resfriada por convecção nas duas faces.",
+    ),
 )
 
 

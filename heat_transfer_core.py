@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import exp, isclose, log, pi, sqrt, tanh
+from math import cos, exp, isclose, log, pi, sin, sqrt, tan, tanh
 
 
 SIGMA = 5.670374419e-8
